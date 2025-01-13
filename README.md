@@ -23,5 +23,5 @@ GEE code (Step 2):
 Python Jupyter Notebook:
 
 1. Data_Prep.ipynb (Step 1) processes kml files and converting into shapefiles that will be used for Google earth engine (GEE).
-2. ML_Model.ipynb (Step 3). This script needs two type of data inputs: (1) the data file generated from GEE processing including optical spectral values of all the bands plus NDVI, NDMI, and SAVI; (2) point shapefile with classification information. The script conducts temporal and spatial transfer learning to map the classification map time series.
+2. Model_ML.ipynb (Step 3). This script needs two type of data inputs: (1) the data file generated from GEE processing including optical spectral values of all the bands plus NDVI, NDMI, and SAVI; (2) point shapefile with classification information. The script conducts temporal and spatial transfer learning to map the classification map time series.
 3. Spatial modelling (Step 4). This script needs the inputs of vegetation classification time series to model the changes of spatial pattern of white zone over the past 40 years. 
