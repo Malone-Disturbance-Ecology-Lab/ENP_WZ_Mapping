@@ -1,0 +1,236 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2761
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww30040\viewh17020\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 var RGB_VIS = \{min: 0, max: 0.3, gamma: 1.5, bands: ['B4', 'B3', 'B2']\};\
+var ndviParams = \{min: -1, max: 1, palette: ['blue', 'white', 'green']\};\
+\
+var whichls = 5\
+var startYear = 1984;\
+var endYear = 2003;\
+//var wzpoint1 = ee.FeatureCollection("projects/gee-groundwater-paul/assets/class2018_new")\
+var wzpoint1 = ee.FeatureCollection("projects/gee-groundwater-paul/assets/intersected_pixel_points")\
+\
+var maskL8 = function (image) \{\
+  // Bits 3 and 5 are cloud shadow and cloud, respectively.\
+  var cloudShadowBitMask = (1 << 3);\
+  var cloudsBitMask = (1 << 5);\
+  // Get the pixel QA band.\
+  var qa = image.select('QA_PIXEL');\
+  // Both flags should be set to zero, indicating clear conditions.\
+  var mask = qa.bitwiseAnd(cloudShadowBitMask).eq(0)\
+                 .and(qa.bitwiseAnd(cloudsBitMask).eq(0));\
+  //return image.updateMask(mask).divide(10000);\
+  return image.updateMask(mask);\
+\}\
+\
+var maskL7 = function (image) \{\
+  // Bits 3 and 4 are cloud shadow and cloud, respectively, in Landsat 7.\
+  var cloudShadowBitMask = (1 << 3);  // Cloud shadow is bit 3\
+  var cloudsBitMask = (1 << 4);       // Cloud is bit 4\
+\
+  // Get the pixel QA band.\
+  var qa = image.select('QA_PIXEL');\
+  \
+  // Both flags should be set to zero, indicating clear conditions.\
+  var mask = qa.bitwiseAnd(cloudShadowBitMask).eq(0)\
+                 .and(qa.bitwiseAnd(cloudsBitMask).eq(0));\
+\
+  return image.updateMask(mask);\
+\};\
+\
+var maskL5 = function (image) \{\
+  var cloudShadowBitMask = (1 << 3); // Bit 3: Cloud shadow\
+  var cloudsBitMask = (1 << 5);      // Bit 5: Clouds\
+  var snowBitMask = (1 << 4);        // Bit 4: Snow/Ice\
+\
+  // Select the 'pixel_qa' band.\
+  var qa = image.select('QA_PIXEL');\
+\
+  // All flags should be set to zero, indicating clear conditions.\
+  var mask = qa.bitwiseAnd(cloudShadowBitMask).eq(0)\
+                 .and(qa.bitwiseAnd(cloudsBitMask).eq(0))\
+                 .and(qa.bitwiseAnd(snowBitMask).eq(0)); // Exclude snow/ice\
+\
+  // Return the masked image.\
+  return image.updateMask(mask);\
+\};\
+\
+\
+\
+function add3_L8(image) \{\
+  var ndvi = image.normalizedDifference(['SR_B5', 'SR_B4']); // Landsat 8\
+  var ndmi = image.normalizedDifference(['SR_B5', 'SR_B6']); // Landsat 8\
+  var savi = image.expression(\
+                '1.5 * (NIR - RED) / (NIR + RED + 0.5)', \{\
+                'NIR': image.select('SR_B5'),\
+                'RED': image.select('SR_B4')\
+                 \}); // Landsat 8\
+  savi = savi.float();\
+  return image.addBands(ndvi.rename('ndvi')).addBands(ndmi.rename('ndmi'))\
+              .addBands(savi.rename('savi'));\
+\}\
+\
+function add3_L7(image) \{\
+  var ndvi = image.normalizedDifference(['SR_B4', 'SR_B3']); // Landsat 7\
+  var ndmi = image.normalizedDifference(['SR_B4', 'SR_B5']); // Landsat 7\
+  var savi = image.expression(\
+                '1.5 * (NIR - RED) / (NIR + RED + 0.5)', \{\
+                'NIR': image.select('SR_B4'),\
+                'RED': image.select('SR_B3')\
+                 \}); // Landsat 8\
+  savi = savi.float();\
+  return image.addBands(ndvi.rename('ndvi')).addBands(ndmi.rename('ndmi'))\
+              .addBands(savi.rename('savi'));\
+\}\
+\
+function add3_L5(image) \{\
+  // Compute NDVI using Landsat 5 bands: NIR (B4) and RED (B3)\
+  var ndvi = image.normalizedDifference(['SR_B4', 'SR_B3']); // Landsat 5\
+  \
+  // Compute NDMI using Landsat 5 bands: NIR (B4) and SWIR1 (B5)\
+  var ndmi = image.normalizedDifference(['SR_B4', 'SR_B5']); // Landsat 5\
+  \
+  // Compute SAVI using Landsat 5 bands: NIR (B4) and RED (B3)\
+  var savi = image.expression(\
+                '1.5 * (NIR - RED) / (NIR + RED + 0.5)', \{\
+                'NIR': image.select('SR_B4'),\
+                'RED': image.select('SR_B3')\
+                 \});\
+  \
+  // Convert SAVI to float\
+  savi = savi.float();\
+  \
+  // Add NDVI, NDMI, and SAVI as new bands and return the image\
+  return image.addBands(ndvi.rename('ndvi')).addBands(ndmi.rename('ndmi'))\
+              .addBands(savi.rename('savi'));\
+\}\
+\
+function fillGaps(image) \{\
+  var filled1 = image.focal_mean(1, 'square', 'pixels', 5);\
+  var filled2 = image.focal_mean(2, 'square', 'pixels', 5);\
+  var filled3 = image.focal_mean(3, 'square', 'pixels', 5);\
+  \
+  // Combine the different scales of filling to create a composite that fills the gaps\
+  var filled = image.unmask(filled1).unmask(filled2).unmask(filled3);\
+  \
+  return filled;\
+\}\
+\
+\
+////////////////////// All the processes start here ///////////////////////////\
+// Loop through each year in the range\
+for (var year = startYear; year <= endYear; year++) \{\
+  // Dynamically calculate startdate and enddate for the current year\
+  var startdate = (year - 1).toString() + '-12-01';\
+  var enddate = year.toString() + '-03-31';\
+\
+  // Print the year and corresponding dates\
+  print('Year:', year, 'Start Date:', startdate, 'End Date:', enddate);\
+\
+  // Conditional logic for selecting Landsat datasets\
+  var imagets;\
+  if (whichls == 8) \{\
+    imagets = L8_SR.filterDate(startdate, enddate)\
+             .filterBounds(wzpoint1)\
+             .map(maskL8)\
+             .map(add3_L8)\
+             .select(['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7', 'ndvi', 'ndmi', 'savi']);\
+  \} else if (whichls == 7) \{\
+    imagets = L7_SR.filterDate(startdate, enddate)\
+             .filterBounds(wzpoint1)\
+             .map(maskL7)\
+             .map(add3_L7)\
+             .map(fillGaps)\
+             .select(['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7', 'ndvi', 'ndmi', 'savi']);\
+  \} else \{\
+    imagets = L5_SR.filterDate(startdate, enddate)\
+             .filterBounds(wzpoint1)\
+             .map(maskL5)\
+             .map(add3_L5)\
+             .map(fillGaps)\
+             .select(['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7', 'ndvi', 'ndmi', 'savi']);\
+  \}\
+\
+  // Compute the median composite for the current year\
+  var medianComposite = imagets.median();\
+  print('Median Composite for Year', year, medianComposite);\
+\
+  // Extract values from the median composite\
+  var extractMedianValues = medianComposite.reduceRegions(\{\
+    collection: wzpoint1,         // Use the FeatureCollection of points\
+    reducer: ee.Reducer.mean(),   // Use mean reducer (works as single value per band for a composite)\
+    scale: 30                     // Landsat resolution\
+  \});\
+\
+  // Print the extracted values for the current year\
+  print('Extracted Values for Year', year, extractMedianValues);\
+\
+  // Export the results as a CSV to Google Drive for the current year\
+  Export.table.toDrive(\{\
+    collection: extractMedianValues, \
+    //description: 'points_' + year.toString(),\
+    description: 'full_' + year.toString(),\
+    fileFormat: 'CSV',\
+    folder: 'GEE'  \
+  \});\
+\}\
+\
+// if (whichls == 8)\{\
+//   var imagets = L8_SR.filterDate(startdate, enddate)\
+//           .filterBounds(wzpoint1)\
+//           .map(maskL8)\
+//           .map(add3_L8)\
+//           .select(['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7', 'ndvi', 'ndmi', 'savi']);\
+// \} else if (whichls == 7) \{\
+//   var imagets = L7_SR.filterDate(startdate, enddate)\
+//           .filterBounds(wzpoint1)\
+//           .map(maskL7)\
+//           .map(add3_L7)\
+//           .map(fillGaps) \
+//           .select(['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7', 'ndvi', 'ndmi', 'savi']);\
+// \} else \{\
+//   var imagets = L5_SR.filterDate(startdate, enddate)\
+//           .filterBounds(wzpoint1)\
+//           .map(maskL5)\
+//           .map(add3_L5)\
+//           .map(fillGaps)\
+//           .select(['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7', 'ndvi', 'ndmi', 'savi']);\
+// \}\
+\
+// var bands = ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7', 'ndvi', 'ndmi', 'savi'];\
+\
+\
+// //var validImages = imagets.map(filterNaN);\
+\
+// // Compute the median composite on the filtered collection (only valid images)\
+// //var medianComposite = validImages.median();\
+\
+// var medianComposite = imagets.median();\
+// print('imagets is', imagets)\
+// print('median band is ', medianComposite)\
+\
+\
+\
+// // Extract values from the median composite\
+// var extractMedianValues = medianComposite.reduceRegions(\{\
+//   collection: wzpoint1,         // Use the FeatureCollection of points\
+//   reducer: ee.Reducer.mean(),   // Use mean reducer (works as single value per band for a composite)\
+//   scale: 30                     // Landsat resolution\
+// \});\
+\
+// // Print to the console to inspect\
+// print('Extracted Values', extractMedianValues);\
+\
+// // Export the results as a CSV to your Google Drive\
+// Export.table.toDrive(\{\
+//   collection: extractMedianValues, \
+//   description: 'MedianCompositeValues',\
+//   fileFormat: 'CSV',\
+//   folder: 'GEE'  \
+// \});\
+\
+}
