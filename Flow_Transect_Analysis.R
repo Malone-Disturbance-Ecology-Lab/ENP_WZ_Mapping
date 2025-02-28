@@ -5,6 +5,10 @@ library(terra)
 library(tidyverse)
 library(sf)
 
+source( '/Users/sm3466/YSE Dropbox/Sparkle Malone/Research/Florida Everglades/The Whitezone/ENP_WZ_Mapping/function_MakeVegetationZoneLayers.R')
+
+source( '/Users/sm3466/YSE Dropbox/Sparkle Malone/Research/Florida Everglades/The Whitezone/ENP_WZ_Mapping/function_Make_TransectLayers.R')
+
 setwd( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE')
 rast.files <- list.files( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE', pattern = "tif")
 
