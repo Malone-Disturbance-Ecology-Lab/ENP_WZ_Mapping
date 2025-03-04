@@ -4,15 +4,20 @@
 library(terra)
 library(tidyverse)
 library(sf)
+library(sfheaders)
+library(units)
+library(dplyr)
+library(ggplot2)
 
-source( '/Users/sm3466/YSE Dropbox/Sparkle Malone/Research/Florida Everglades/The Whitezone/ENP_WZ_Mapping/function_MakeVegetationZoneLayers.R')
+rm(list = ls())
+source( '/Users/bz294/Documents/WhiteZone/Code/function_MakeVegetationZoneLayers.R')
 
-source( '/Users/sm3466/YSE Dropbox/Sparkle Malone/Research/Florida Everglades/The Whitezone/ENP_WZ_Mapping/function_Make_TransectLayers.R')
+source( '/Users/bz294/Documents/WhiteZone/Code/function_Make_TransectLayers.R')
 
 setwd( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE')
 rast.files <- list.files( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE', pattern = "tif")
 
-coast <- rast( rast.files) %>% terra::project("+proj=longlat +datum=WGS84")
+coast <- rast( rast.files) %>% terra::project("+proj=longlat +datum=WGS84") ## need to remove all the xml files
 terra::time(coast) <-  substr(rast.files, 8, 11) %>% as.numeric # get the time out of the list of file names
 
 coast.factor <- coast %>% as.factor
@@ -42,11 +47,89 @@ Int.coastal.1 <- Trans_Intersection(ENP.transects,coast.1.sf  )
 Int.coastal.2 <- Trans_Intersection(ENP.transects,coast.2.sf  )
 Int.coastal.3 <- Trans_Intersection(ENP.transects,coast.3.sf  )
 
-Int.coastal.1 %>% ggplot() + geom_sf() + facet_wrap(~time)
+#Int.coastal.1 %>% ggplot() + geom_sf() + facet_wrap(~time)
+#Int.coastal.2 %>% ggplot() + geom_sf() + facet_wrap(~time)
+#Int.coastal.3 %>% ggplot() + geom_sf() + facet_wrap(~time)
+output_file <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/VZ_trend.tif"
+Int.coastal.1 %>% 
+  ggplot() + 
+  geom_sf() + 
+  facet_wrap(~time) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+ggsave(output_file, plot = last_plot(), device = "tiff", dpi = 300)
+#################### Output the first layer as shapefile ###########
+# Assuming Int.coastal.1 is an sf object
+output_shapefile <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/test_layer.tif"
+# Extract rows where time equals 1984
+filtered_data <- Int.coastal.1[Int.coastal.1$time == 1984, ]
 
-Int.coastal.2 %>% ggplot() + geom_sf() + facet_wrap(~time)
+# Check if filtered_data is still a valid sf object
+if (inherits(filtered_data, "sf")) {
+  # Output the filtered data as a shapefile
+  st_write(filtered_data, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/test_1984.shp")
+} else {
+  print("Filtered data is not a valid sf object.")
+}
 
-Int.coastal.3 %>% ggplot() + geom_sf() + facet_wrap(~time)
+
+Int.coastal.2 %>% 
+  ggplot() + 
+  geom_sf() + 
+  facet_wrap(~time) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+
+output_file <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/WZ_trend.tif"
+Int.coastal.2 %>% 
+  ggplot() + 
+  geom_sf() + 
+  facet_wrap(~time) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+ggsave(output_file, plot = last_plot(), device = "tiff", dpi = 300)
+
+Int.coastal.3 %>% 
+  ggplot() + 
+  geom_sf() + 
+  facet_wrap(~time) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+
+################### Frequency plot for transects Line by Line ##############
+transect_1 <- ENP.transects %>% filter(ID == 100)
+intersect_1 <- Int.coastal.1 %>% filter(ID == 100)
+
+intersect_1_sf <- st_as_sf(intersect_1, wkt = "x")  # Assuming 'x' is in WKT format
+print(st_geometry(intersect_1_sf))  # This should give a list of geometries
+
+intersect_1_sf$freq <- 1
+
+intersect_freq <- intersect_1_sf %>%
+  group_by(ID) %>%
+  summarise(geometry = st_union(st_geometry(.)), freq = sum(freq), .groups = "drop") %>%
+  st_as_sf()  # Ensure the result is an sf object with proper geometry
+
+# all_segments <- Int.coastal.1 %>%
+#   group_by(ID, time) %>%  # Group by transect ID and year
+#   summarise(geometry = st_union(st_geometry(.)), .groups = "drop")
+
 
 
 

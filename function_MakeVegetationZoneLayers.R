@@ -40,10 +40,13 @@ polygonize_SpatRast <- function( stack){
 Trans_Intersection <- function( transects, polygons ){
   
   Intersect <- st_intersection(transects, polygons)
+  # Intersect <- Intersect %>%
+  #   left_join(transects %>% st_drop_geometry() %>% select(ID), by = character()) 
   Intersect$length.new <- st_length(Intersect)
   Intersect$length.Delta <- (Intersect$length.new - Intersect$length.org)/Intersect$length.org *100
+  Intersect$length.perc <- Intersect$length.new/Intersect$length.org *100
+  #print(Intersect$length.perc %>% hist )
   
-  print(Intersect$length.Delta %>% hist )
-  
+  hist(Intersect$length.perc, main = "Histogram of Percentage of Intersection over the Transect")
   return( Intersect)
 }

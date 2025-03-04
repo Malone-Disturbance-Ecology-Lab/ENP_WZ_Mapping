@@ -12,8 +12,8 @@ library(sfheaders)
 library(tidyverse)
 library(ggplot2)
 
-coast.sf <- read_sf('/Volumes/MaloneLab/Research/Whitezone/Spatial Data/Coastal_Line.kml')
-inland.sf <- read_sf('/Volumes/MaloneLab/Research/Whitezone/Spatial Data/Inland_Line.kml')
+coast.sf <- read_sf('/Volumes/Malonelab/Research/Whitezone/Spatial_Data/Coastal.kml')
+inland.sf <- read_sf('/Volumes/Malonelab/Research/Whitezone/Spatial_Data/Inland.kml')
 aoi <- read_sf('/Volumes/MaloneLab/Research/ENP/The Whitezone/WhiteZoneMap/SamplingGrid/AOI.kml')
 
 plot(coast.sf$geometry)
@@ -52,6 +52,7 @@ st_crs(sfc) <- st_crs(line1)
 sfc$length.org <- st_length(sfc) # add the length of each transect here:
 
 # Show a plot of the transects
+sfc$ID <- seq(1, transect.n, 1)
 
 final.plot <- ggplot( ) + geom_sf( data = line1 ) + geom_sf( data = line2 ) + geom_sf( data = sfc)
 print( final.plot)
