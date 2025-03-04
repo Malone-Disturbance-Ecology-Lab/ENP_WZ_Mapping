@@ -21,7 +21,7 @@ coast.factor [ coast.factor  == 0] <- NA
 
 # Need individual rast layers
 coast.1 <- coast.factor
-coast.1[ coast.1  != 2 ] <- NA
+coast.1[ coast.1  != 1 ] <- NA
 coast.1[[1]] %>% plot
 
 coast.2 <- coast.factor
