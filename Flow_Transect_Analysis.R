@@ -76,7 +76,9 @@ if (inherits(filtered_data, "sf")) {
   print("Filtered data is not a valid sf object.")
 }
 
-
+output_shapefile <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/transect.tif"
+st_write(ENP.transects, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/full_transect.shp")
+######################## End of shapefile output ##################################
 Int.coastal.2 %>% 
   ggplot() + 
   geom_sf() + 
@@ -112,6 +114,112 @@ Int.coastal.3 %>%
     axis.ticks.y = element_blank()
   )
 
+###################### Make Date Present Plot ##############################
+set.seed(123)
+p <- ggplot(Int.coastal.3, aes(x = ID, y = time)) +
+  geom_point(shape = "-", size = 8) +  # Use horizontal bars to represent presence
+  theme_minimal() +
+  labs(x = "Transect ID", y = "Year", title = "Transect TZ Presence by Year") +
+  scale_y_continuous(breaks = seq(1984, 2024, by = 5)) +
+  theme(
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "white", color = NA),  # White background
+    plot.background = element_rect(fill = "white", color = NA),  # Ensure full white background
+    plot.title = element_text(hjust = 0.5, face = "bold")  # Center title and make it bold
+  )
+# Save as TIFF
+ggsave("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Transect_Presence_TZ.tif", plot = p, width = 8, height = 6, dpi = 300, device = "tiff")
+###################### Make Time Series Plot ##############################
+aggregated_data <- Int.coastal.3 %>%
+  group_by(time) %>%
+  summarise(total_length_new = sum(length.new, na.rm = TRUE))
+
+# Create the plot
+p <- ggplot(aggregated_data, aes(x = time, y = total_length_new)) +
+  geom_line(color = "blue", size = 1) +  # Line plot for summation of 'length.new'
+  geom_point(color = "red", size = 2) +  # Points for each year
+  labs(x = "Year", y = "Summation of Transects Length", title = "Total Length by Year for All TZ Transects") +
+  theme(
+    panel.background = element_rect(fill = "white"),  # Set the panel background to white
+    plot.background = element_rect(fill = "white"),   # Set the plot background to white
+    plot.title = element_text(hjust = 0.5)            # Center the plot title
+  )
+
+# Show the plot
+ggsave("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/total_length_by_time_TZ.tiff", plot = p, device = "tiff", width = 8, height = 6, dpi = 300)
+
+###################### Make Change Rate Plot ##############################
+
+time_sequence <- 1984:2024
+
+# Function to calculate change rate and standard deviation for each transect ID
+calculate_change_rate_and_std <- function(df, time_sequence) {
+  # Create an empty data frame to store the results
+  result <- data.frame(ID = integer(0), change_rate = numeric(0), std_dev = numeric(0))
+  
+  # Loop over each unique transect ID
+  for (transect_id in unique(df$ID)) {
+    # Filter the data for the specific transect ID
+    transect_data <- df %>% filter(ID == transect_id)
+    
+    # Create the time series (match the time sequence 1984-2024)
+    time_series <- rep(NA, length(time_sequence))
+    for (i in 1:length(time_sequence)) {
+      year_data <- transect_data %>% filter(time == time_sequence[i])
+      if (nrow(year_data) > 0) {
+        time_series[i] <- year_data$length.new  # Replace `value` with your actual column name for the data
+      }
+    }
+    
+    # If there are enough data points (>= 2), fit a linear model
+    if (sum(!is.na(time_series)) >= 2) {
+      model <- lm(time_series ~ time_sequence)
+      
+      # Extract the change rate (slope) and standard deviation (residuals)
+      change_rate <- coef(model)[2]
+      std_dev <- sd(resid(model))
+      
+      # Append the results for this transect ID
+      result <- rbind(result, data.frame(ID = transect_id, change_rate = change_rate, std_dev = std_dev))
+    }
+  }
+  
+  return(result)
+}
+
+change_rate_std_df <- calculate_change_rate_and_std(Int.coastal.3, time_sequence)
+# Add the upper and lower bounds for the shaded area
+change_rate_std_df <- change_rate_std_df %>%
+  mutate(
+    lower_bound = change_rate - std_dev / 2,
+    upper_bound = change_rate + std_dev / 2
+  )
+
+# Create the plot
+p = ggplot(change_rate_std_df, aes(x = ID)) +
+  # Shaded area (ribbon) for change rate with standard deviation bounds
+  geom_ribbon(aes(ymin = lower_bound, ymax = upper_bound), fill = "blue", alpha = 0.3) +
+  # Plot the change rate as a line
+  geom_line(aes(y = change_rate), color = "blue", size = 1) +
+  # Add points for the change rate values
+  geom_point(aes(y = change_rate), color = "blue", size = 1) +
+  # Plot a horizontal line at y = 0
+  geom_hline(yintercept = 0, color = "black", size = 0.5) +
+  # Labels and theme
+  labs(x = "Transect ID", y = "Change Rate & Standard Deviation", title = "Change Rate with Standard Deviation for Each Transect") +
+  theme_minimal() +
+  theme(
+    panel.background = element_rect(fill = "white"),  # Set background to white
+    plot.background = element_rect(fill = "white"),   # Set plot background to white
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(hjust = 0.5)
+  )
+
+
+ggsave("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/change_rate_std_plot_TZ.tiff", plot = p, device = "tiff", width = 8, height = 6, dpi = 300)
+
 ################### Frequency plot for transects Line by Line ##############
 transect_1 <- ENP.transects %>% filter(ID == 100)
 intersect_1 <- Int.coastal.1 %>% filter(ID == 100)
@@ -126,9 +234,6 @@ intersect_freq <- intersect_1_sf %>%
   summarise(geometry = st_union(st_geometry(.)), freq = sum(freq), .groups = "drop") %>%
   st_as_sf()  # Ensure the result is an sf object with proper geometry
 
-# all_segments <- Int.coastal.1 %>%
-#   group_by(ID, time) %>%  # Group by transect ID and year
-#   summarise(geometry = st_union(st_geometry(.)), .groups = "drop")
 
 
 
