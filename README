@@ -5,9 +5,13 @@
 **Project Overview**: 
 This project uses Landsat optical remote sensing observations to map the land-cover changes of the South Florida Everglades coastal wetlands since 1984. Land covers were classified into "Vegetation Zone" (VZ, mostly mangroves), "White Zone" (WZ, dead aboveground biomass), and "Transition Zone" (TZ, with optical signature between the VZ and WZ). About 1500 point samples were manually classified for eight years out of the 41 years time span (with ~6 years interval) using available high-resolution Google Earth imagery. We used an Machine Learning (ML) approach to spatially and temporally emulate the classification to the regional scale for the past 40 years. The results will be used for spatial modelling to track the trend of white zone expansion and mangrove migration.   
 
+Note: The scripts pull data using absolute directory on the server. When a script calls another script/function, it uses relative directory. This way allows users to directly run the code.
+
 **Input data**:
 1. Manually classified point samples of eight years (1986, 1994, 1999, 2003, 2009, 2013, 2017, and 2023) in the format of shapefile
 2. Optical observations were obtained from Google Earth Engine (GEE), and the script was available in this repo
+
+These data are stored on the server: /Volumes/Malonelab/Research/Whitezone/Data/KML/
 
 
 **File Structure**:
