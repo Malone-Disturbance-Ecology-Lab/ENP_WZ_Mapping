@@ -213,6 +213,7 @@ print(top_5_sites)
 
 # Step 1: Extract relevant data from all_annual_averages based on top_5_sites
 top_5_site_names <- top_5_sites$site  # Get the site names from top_5_sites
+all_site_names <- all_annual_averages$site
 
 # Filter all_annual_averages for the top 5 sites
 top_5_data <- all_annual_averages %>%
@@ -225,9 +226,9 @@ matching_years <- top_5_data$year  # Get the years from top_5_sites
 summary_data_filtered <- summary_data_df %>%
   filter(time %in% matching_years)
 
-correlation_results <- lapply(top_5_site_names, function(site_name) {
+correlation_results <- lapply(all_site_names, function(site_name) {
   # Extract annual_avg for the site
-  site_data <- top_5_data %>%
+  site_data <- all_annual_averages %>%
     filter(site == site_name)
   
   # Extract the proportion_Int2 values for the matching years
@@ -283,77 +284,168 @@ data <- read.csv(csv_file)
 data <- na.omit(data)  # Remove rows with N/A values
 
 # Assuming the 2nd and 3rd columns are Lat and Lon in DDMMSS.SS format
-data <- data %>%
+data <- data %>% ## this data is the records for salinity and lat/lon
   mutate(
     lat_decimal = sapply(data[[3]], convert_to_decimal),  # Convert lat to decimal degrees
     lon_decimal = sapply(data[[4]], convert_to_decimal)  # Convert lon to decimal degrees
   )
 data$lon_decimal <- -abs(data$lon_decimal)
 
+
+####################### Plot it on interactive app using leaflet #############
 # Define the color scale for the correlation values
-color_scale <- colorNumeric(palette = "YlGnBu", domain = ENP.transects_with_corr$correlation_value)
+ENP.transects_with_corr_clean <- ENP.transects_with_corr[!is.na(ENP.transects_with_corr$correlation), ]
 
+# Define the color scale
+color_scale <- colorNumeric(palette = "YlOrRd", domain = ENP.transects_with_corr_clean$correlation, na.color = "gray")
 
+station_of_interest <- "S197"
 # Extract correlation values for site FLAB08_salinity
-correlation_flab08 <- correlation_results_df %>%
-  filter(site == "FLAB08_salinity") %>%
+correlation_of_interest <- correlation_results_df %>%
+  filter(site == paste0(station_of_interest, "_salinity")) %>%
   select(ID, correlation)
 
 # Ensure 'correlation' is numeric and remove NAs
-correlation_flab08 <- correlation_flab08 %>%
+correlation_of_interest <- correlation_of_interest %>%
   mutate(correlation = as.numeric(correlation)) %>%
   filter(!is.na(correlation))
 
 ENP.transects_with_corr <- ENP.transects %>%
-  left_join(correlation_flab08, by = "ID")
+  left_join(correlation_of_interest, by = "ID")
 
 # Define the color scale based on correlation
 color_scale <- colorNumeric(palette = "YlGnBu", domain = ENP.transects_with_corr$correlation)
 
-flab08_point <- data %>%
-  filter(Station_ID == "FLAB08_salinity")
+point_of_interest <- data %>%
+  filter(Station_ID == station_of_interest)
 
 # Plot map
-leaflet(ENP.transects_with_corr) %>%
+# Create the map
+leaflet(ENP.transects_with_corr_clean) %>%
   addProviderTiles("Esri.WorldImagery") %>%
-  
-  # Add existing station markers
-  addCircleMarkers(data = data,
-                   lng = ~lon_decimal,
-                   lat = ~lat_decimal,
-                   color = "red",
-                   radius = 5,
-                   label = ~as.character(Station_ID),
-                   labelOptions = labelOptions(noHide = TRUE, 
-                                               direction = "top",
-                                               textsize = "10px",
-                                               fontweight = "bold")) %>%
-  addCircleMarkers(data = flab08_point,
-                   lng = ~lon_decimal,
-                   lat = ~lat_decimal,
-                   color = "gold",
-                   radius = 10,
-                   stroke = TRUE,
-                   weight = 3,
-                   fillOpacity = 1,
-                   label = "FLAB08_salinity",
-                   labelOptions = labelOptions(noHide = TRUE,
-                                               direction = "top",
-                                               textsize = "12px",
-                                               fontweight = "bold"))
+  # Add station markers
+  addCircleMarkers(
+    data = data,
+    lng = ~lon_decimal,
+    lat = ~lat_decimal,
+    color = "red",
+    radius = 5,
+    label = ~as.character(Station_ID),
+    labelOptions = labelOptions(
+      noHide = TRUE,
+      direction = "top",
+      textsize = "10px",
+      fontweight = "bold"
+    )
+  ) %>%
+  # Add station of interest site as a gold star
+  addCircleMarkers(
+    data = point_of_interest,
+    lng = ~lon_decimal,
+    lat = ~lat_decimal,
+    color = "gold",
+    radius = 10,
+    stroke = TRUE,
+    weight = 3,
+    fillOpacity = 1,
+    label = paste0(station_of_interest, "_salinity"),
+    labelOptions = labelOptions(
+      noHide = TRUE,
+      direction = "top",
+      textsize = "12px",
+      fontweight = "bold"
+    )
+  ) %>%
   # Add transect lines colored by correlation
-  addPolylines(color = ~color_scale(correlation),
-               weight = 3,
-               opacity = 0.7) %>%
-  
+  addPolylines(
+    data = ENP.transects_with_corr_clean,
+    color = ~color_scale(correlation),
+    weight = 3,
+    opacity = 0.7,
+    popup = ~paste0("Correlation: ", round(correlation, 3))  # <-- This adds the popup
+  ) %>%
   # Add legend
-  addLegend("bottomright",
-            pal = color_scale,
-            values = ~correlation,
-            title = "Correlation",
-            opacity = 1)
+  addLegend(
+    "bottomright",
+    pal = color_scale,
+    values = ENP.transects_with_corr_clean$correlation,
+    title = "Correlation",
+    opacity = 1
+  )
 
+####################### Water level DBHydro correlation analysis #################################
+dbhydro <- read.csv("/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Hydro/DBhydro/annual_summary.csv", stringsAsFactors = FALSE)
 
+# Step 1: Extract relevant data from all_annual_averages based on top_5_sites
+all_site_names <- dbhydro$source_file
+
+# Filter all_annual_averages for the top 5 sites
+top_5_data <- dbhydro %>%
+  select(year, source_file, mean_value, sd_value)
+
+# Step 2: Filter summary_data_df for the years that match
+matching_years <- top_5_data$year  # Get the years from top_5_sites
+
+correlation_results_dbh <- lapply(all_site_names, function(site_name) {
+  # Extract mean_value for the site from dbhydro
+  site_data <- dbhydro %>%
+    filter(source_file == site_name)
+  
+  # Extract proportion_Int2 values for matching years
+  site_summary <- summary_data_filtered %>%
+    filter(time %in% site_data$year) %>%
+    select(ID, time, proportion_Int2)
+  
+  # Merge the site data with the transect data by year
+  merged_data <- site_data %>%
+    inner_join(site_summary, by = c("year" = "time"))
+  
+  # Calculate correlation for each ID
+  site_correlation <- lapply(1:100, function(ID_value) {
+    transect_data <- merged_data %>%
+      filter(ID == ID_value)
+    
+    if (nrow(transect_data) > 1) {
+      correlation_result <- cor(transect_data$mean_value, transect_data$proportion_Int2, use = "complete.obs")
+      return(data.frame(site = site_name, ID = ID_value, correlation = correlation_result))
+    } else {
+      return(NULL)
+    }
+  })
+  
+  # Bind correlations into a data frame
+  site_correlation_df <- bind_rows(site_correlation)
+  return(site_correlation_df)
+})
+
+correlation_results_dbh_df <- bind_rows(correlation_results_dbh)
+
+############# Plot correlation between WZ proportions and water level mean across transects ###
+station_of_interest <- "ENPGB"
+# Extract correlation values for site FLAB08_salinity
+correlation_of_interest <- correlation_results_dbh_df %>%
+  filter(site == station_of_interest) %>%
+  select(ID, correlation)
+
+# Ensure 'correlation' is numeric and remove NAs
+correlation_of_interest <- correlation_of_interest %>%
+  mutate(correlation = as.numeric(correlation)) %>%
+  filter(!is.na(correlation))
+
+ENP.transects_with_corr <- ENP.transects %>%
+  left_join(correlation_of_interest, by = "ID")
+
+# # Set the folder path
+# folder_path <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Hydro/DBhydro/WZ_sites_data/"  # Replace with your actual path
+# 
+# # List all CSV files in the folder
+# csv_files <- list.files(path = folder_path, pattern = "\\.csv$", full.names = TRUE)
+# 
+# # Read and combine all CSVs, skipping the first 34 rows
+# combined_df <- lapply(csv_files, function(file) {
+#   read_csv(file, skip = 34, col_types = cols(.default = "c"))
+# }) %>%
+#   bind_rows()
 ################### Experiment with one site only ############################
 # first_file <- csv_files[4]
 # cat("Reading file:", first_file, "\n")
