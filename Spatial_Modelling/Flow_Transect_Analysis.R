@@ -16,6 +16,10 @@ library(ggplot2)
 library(reshape2)
 library(here)
 library(rstudioapi)
+library(tools)
+library(maps)
+library(stringr)
+library(leaflet)
 
 rm(list = ls())
 ### This function gets current directory
@@ -70,6 +74,16 @@ coast.1.sf <- polygonize_SpatRast(stack = coast.1)
 coast.2.sf <- polygonize_SpatRast(stack = coast.2)
 coast.3.sf <- polygonize_SpatRast(stack = coast.3)
 
+# coast.1.first <- coast.1[[1]]
+# coast.1.sub.sf <- polygonize_SpatRast(stack = coast.1.first)
+# coast.2.first <- coast.2[[1]]
+# coast.2.sub.sf <- polygonize_SpatRast(stack = coast.2.first)
+# coast.3.first <- coast.3[[1]]
+# coast.3.sub.sf <- polygonize_SpatRast(stack = coast.3.first)
+# st_write(coast.1.sub.sf, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/coast_1_shapefile.shp")
+# st_write(coast.2.sub.sf, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/coast_2_shapefile.shp")
+# st_write(coast.3.sub.sf, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/coast_3_shapefile.shp")
+
 ENP.transects <- makeTransect(line1 = coast.sf, line2 =  inland.sf, transect.n= 100)
 
 Int.coastal.1 <- Trans_Intersection(ENP.transects,coast.1.sf  )
@@ -87,7 +101,7 @@ output_shapefile <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modell
 st_write(ENP.transects, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/full_transect.shp")
 
 ### intersected transect layer
-save_filtered_shapefile("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/test_2024.shp", Int.coastal.1, 2024)
+save_filtered_shapefile("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/test_1984_wz.shp", Int.coastal.2, 1984)
 
 ### trend plot
 output_file <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/TZ_trend_.tif"
@@ -110,6 +124,257 @@ save_change_rate_std_plot(Int.coastal.2, output_path, time_sequence)
 ####################### Area analysis for the raster stack ##########
 plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE", 
                                                          "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_.tif")
+########################## Output info for driver analysis ###############
+# Add a source column to identify the dataset
+df1 <- Int.coastal.1 %>% mutate(source = "Int.coastal.1")
+df2 <- Int.coastal.2 %>% mutate(source = "Int.coastal.2")
+df3 <- Int.coastal.3 %>% mutate(source = "Int.coastal.3")
+# Bind all rows together
+all_data <- bind_rows(df1, df2, df3)
+
+# Group by ID and time, then calculate total length per group
+summary_data <- all_data %>%
+  group_by(ID, time) %>%
+  summarise(
+    total_length = sum(length.new, na.rm = TRUE),
+    length_Int1 = sum(length.new[source == "Int.coastal.1"], na.rm = TRUE),
+    length_Int2 = sum(length.new[source == "Int.coastal.2"], na.rm = TRUE),
+    length_Int3 = sum(length.new[source == "Int.coastal.3"], na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    proportion_Int1 = length_Int1 / total_length,
+    proportion_Int2 = length_Int2 / total_length,
+    proportion_Int3 = length_Int3 / total_length
+  )
+
+# View result
+head(summary_data)
+summary_data_df <- summary_data %>% st_drop_geometry()
+write.csv(summary_data_df, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/summary_data.csv", row.names = FALSE)
+###################### Summarize the annual salinity and water level ###########
+# Set the path to your folder
+folder_path <- "/Users/bz294/Documents/WhiteZone/Data/Driver_Analysis/Salinity/WZ_salinity_data"
+
+# List all CSV files in the folder
+csv_files <- list.files(path = folder_path, pattern = "\\.csv$", full.names = TRUE)
+
+# Loop through each CSV file and track failures
+all_annual_averages <- lapply(csv_files, function(file) {
+  cat("Reading file:", file, "\n")
+  
+  # Read raw data with 2 columns: time and value
+  raw_data <- read_csv(file, col_names = c("time", "value"))
+  
+  # Remove header row if present
+  data <- raw_data %>% slice(-1)
+  
+  # Try parsing dates
+  data <- data %>%
+    mutate(
+      parsed_time = parse_date_time(time, orders = c("ymd", "mdy", "dmy")),
+      value = as.numeric(value),
+      site = file_path_sans_ext(basename(file))
+    )
+  
+  # Check for parsing failures
+  failed_rows <- data %>% filter(is.na(parsed_time))
+  
+  if (nrow(failed_rows) > 0) {
+    cat("❌ Failed to parse dates in file:", file, "\n")
+    print(failed_rows)
+  }
+  
+  # If no valid dates, skip to next
+  if (all(is.na(data$parsed_time))) {
+    return(NULL)
+  }
+  
+  # Calculate annual average
+  annual_avg <- data %>%
+    filter(!is.na(parsed_time)) %>%
+    mutate(year = year(parsed_time)) %>%
+    group_by(site, year) %>%
+    summarise(annual_avg = mean(value, na.rm = TRUE), .groups = "drop")
+  
+  return(annual_avg)
+}) %>%
+  bind_rows()
+
+top_5_sites <- all_annual_averages %>%
+  group_by(site) %>%
+  summarise(n_years = n()) %>%
+  arrange(desc(n_years)) %>%
+  slice_head(n = 5)
+
+print(top_5_sites)
+###################### Correlation analysis between transects and salinity ####
+### start with long stations
+
+# Step 1: Extract relevant data from all_annual_averages based on top_5_sites
+top_5_site_names <- top_5_sites$site  # Get the site names from top_5_sites
+
+# Filter all_annual_averages for the top 5 sites
+top_5_data <- all_annual_averages %>%
+  filter(site %in% top_5_site_names) %>%
+  select(site, year, annual_avg)
+
+# Step 2: Filter summary_data_df for the years that match
+matching_years <- top_5_data$year  # Get the years from top_5_sites
+
+summary_data_filtered <- summary_data_df %>%
+  filter(time %in% matching_years)
+
+correlation_results <- lapply(top_5_site_names, function(site_name) {
+  # Extract annual_avg for the site
+  site_data <- top_5_data %>%
+    filter(site == site_name)
+  
+  # Extract the proportion_Int2 values for the matching years
+  site_summary <- summary_data_filtered %>%
+    filter(time %in% site_data$year) %>%
+    select(ID, time, proportion_Int2)
+  
+  # Merge the site data (annual_avg) with the transect data (proportion_Int2) by year
+  merged_data <- site_data %>%
+    inner_join(site_summary, by = c("year" = "time"))
+  
+  # Initialize an empty list to store correlations for each transect
+  site_correlation <- lapply(1:100, function(ID_value) {
+    # Filter data for the given transect ID
+    transect_data <- merged_data %>%
+      filter(ID == ID_value)
+    
+    # Perform the correlation analysis for the current transect (ID)
+    if (nrow(transect_data) > 1) {
+      correlation_result <- cor(transect_data$annual_avg, transect_data$proportion_Int2, use = "complete.obs")
+      return(data.frame(site = site_name, ID = ID_value, correlation = correlation_result))
+    } else {
+      return(NULL)  # Skip if there is insufficient data for correlation
+    }
+  })
+  
+  # Bind the list of correlations into a data frame for the site
+  site_correlation_df <- bind_rows(site_correlation)
+  return(site_correlation_df)
+})
+
+# Step 4: Combine the results into one data frame
+correlation_results_df <- bind_rows(correlation_results)
+
+# View the correlation results
+print(correlation_results_df)
+
+###################### Map the salinity stations and correlations on a map ####################
+convert_to_decimal <- function(degrees_minutes_seconds) {
+  # Extract degrees, minutes, and seconds
+  degrees <- as.numeric(substr(degrees_minutes_seconds, 1, 2))  # First 2 digits (degrees)
+  minutes <- as.numeric(substr(degrees_minutes_seconds, 3, 4))  # Next 2 digits (minutes)
+  seconds <- as.numeric(substr(degrees_minutes_seconds, 5, 10))  # Last 5 digits (seconds with decimals)
+  
+  # Convert to decimal degrees
+  decimal_degrees <- degrees + (minutes / 60) + (seconds / 3600)
+  
+  return(decimal_degrees)
+}
+
+csv_file <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Salinity/WZ_salinity_sites_latlon.csv"  # replace with your file path
+data <- read.csv(csv_file)
+data <- na.omit(data)  # Remove rows with N/A values
+
+# Assuming the 2nd and 3rd columns are Lat and Lon in DDMMSS.SS format
+data <- data %>%
+  mutate(
+    lat_decimal = sapply(data[[3]], convert_to_decimal),  # Convert lat to decimal degrees
+    lon_decimal = sapply(data[[4]], convert_to_decimal)  # Convert lon to decimal degrees
+  )
+data$lon_decimal <- -abs(data$lon_decimal)
+
+# Define the color scale for the correlation values
+color_scale <- colorNumeric(palette = "YlGnBu", domain = ENP.transects_with_corr$correlation_value)
+
+
+# Extract correlation values for site FLAB08_salinity
+correlation_flab08 <- correlation_results_df %>%
+  filter(site == "FLAB08_salinity") %>%
+  select(ID, correlation)
+
+# Ensure 'correlation' is numeric and remove NAs
+correlation_flab08 <- correlation_flab08 %>%
+  mutate(correlation = as.numeric(correlation)) %>%
+  filter(!is.na(correlation))
+
+ENP.transects_with_corr <- ENP.transects %>%
+  left_join(correlation_flab08, by = "ID")
+
+# Define the color scale based on correlation
+color_scale <- colorNumeric(palette = "YlGnBu", domain = ENP.transects_with_corr$correlation)
+
+flab08_point <- data %>%
+  filter(Station_ID == "FLAB08_salinity")
+
+# Plot map
+leaflet(ENP.transects_with_corr) %>%
+  addProviderTiles("Esri.WorldImagery") %>%
+  
+  # Add existing station markers
+  addCircleMarkers(data = data,
+                   lng = ~lon_decimal,
+                   lat = ~lat_decimal,
+                   color = "red",
+                   radius = 5,
+                   label = ~as.character(Station_ID),
+                   labelOptions = labelOptions(noHide = TRUE, 
+                                               direction = "top",
+                                               textsize = "10px",
+                                               fontweight = "bold")) %>%
+  addCircleMarkers(data = flab08_point,
+                   lng = ~lon_decimal,
+                   lat = ~lat_decimal,
+                   color = "gold",
+                   radius = 10,
+                   stroke = TRUE,
+                   weight = 3,
+                   fillOpacity = 1,
+                   label = "FLAB08_salinity",
+                   labelOptions = labelOptions(noHide = TRUE,
+                                               direction = "top",
+                                               textsize = "12px",
+                                               fontweight = "bold"))
+  # Add transect lines colored by correlation
+  addPolylines(color = ~color_scale(correlation),
+               weight = 3,
+               opacity = 0.7) %>%
+  
+  # Add legend
+  addLegend("bottomright",
+            pal = color_scale,
+            values = ~correlation,
+            title = "Correlation",
+            opacity = 1)
+
+
+################### Experiment with one site only ############################
+# first_file <- csv_files[4]
+# cat("Reading file:", first_file, "\n")
+# raw_data <- read_csv(first_file, col_names = c("time", "value"))
+# unique(raw_data)
+# print(head(raw_data))
+# 
+# clean_data <- raw_data %>%
+#   slice(-1) %>%
+#   mutate(
+#     time = ymd(time),              # Use ymd() for "2016-01-25" format
+#     value = as.numeric(value),
+#     year = year(time)
+#   )
+# 
+# annual_avg <- clean_data %>%
+#   group_by(year) %>%
+#   summarise(annual_avg = mean(value, na.rm = TRUE)) %>%
+#   ungroup()
+
+
 ################### Frequency plot for transects Line by Line ##############
 # transect_1 <- ENP.transects %>% filter(ID == 70)
 # intersect_1 <- Int.coastal.1 %>% filter(ID == 70)
