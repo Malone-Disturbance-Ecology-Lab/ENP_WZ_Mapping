@@ -54,8 +54,6 @@ convert_to_decimal <- function(degrees_minutes_seconds) {
 }
 
 # color_scale is for leaflet plotting
-color_scale <- colorNumeric(palette = "YlGnBu", domain = ENP.transects_with_corr$correlation)
-
 path <- get_directory() ## get current directory path
 setwd(path)
 source( './function_MakeVegetationZoneLayers.R')
@@ -113,7 +111,7 @@ Int.coastal.3 <- Trans_Intersection(ENP.transects,coast.3.sf  )
 #################### Output the transect layer,  intersection transect layer, and the trend plot  ###########
 ### Transect layer
 output_shapefile <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/transect.tif"
-st_write(ENP.transects, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/full_transect.shp")
+#st_write(ENP.transects, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/full_transect.shp")
 
 ### intersected transect layer
 save_filtered_shapefile("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/test_1984_wz.shp", Int.coastal.2, 1984)
@@ -169,7 +167,7 @@ summary_data_df <- summary_data %>% st_drop_geometry()
 write.csv(summary_data_df, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/summary_data.csv", row.names = FALSE)
 ###################### Summarize the annual salinity and water level ###########
 # Set the path to your folder
-folder_path <- "/Users/bz294/Documents/WhiteZone/Data/Driver_Analysis/Salinity/WZ_salinity_data"
+folder_path <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Salinity/WZ_salinity_data"
 
 # List all CSV files in the folder
 csv_files <- list.files(path = folder_path, pattern = "\\.csv$", full.names = TRUE)
@@ -229,6 +227,7 @@ data$lon_decimal <- -abs(data$lon_decimal)
 ####################### Plot it on interactive app using leaflet #############
 # Define the color scale
 station_of_interest <- "S197"
+## other sites are: Long stations: FLAB08, 14, 10, 11, 12, Short stations: C111W3, S197, C111JB, C111TC, C111MC, C111AC.
 # Extract correlation values for site FLAB08_salinity
 correlation_of_interest <- correlation_results_df %>%
   filter(site == paste0(station_of_interest, "_salinity")) %>%
@@ -244,10 +243,11 @@ ENP.transects_with_corr <- ENP.transects %>%
 
 ENP.transects_with_corr_clean <- ENP.transects_with_corr[!is.na(ENP.transects_with_corr$correlation), ]
 
+color_scale <- colorNumeric(palette = "YlGnBu", domain = ENP.transects_with_corr$correlation)
 # Define the color scale based on correlation
 
-point_of_interest <- db_summary %>%
-  filter(Name == station_of_interest)
+point_of_interest <- data %>%
+  filter(Station_ID == station_of_interest)
 
 plot_correlation_map(
   data = data,
@@ -314,7 +314,7 @@ db_summary <- db_summary %>%
 point_of_interest <- db_summary %>%
   filter(Name == station_of_interest)
 
-plot_salinity_correlation_map(
+plot_correlation_map(
   data = db_summary,
   point_of_interest = point_of_interest,
   ENP_transects = ENP.transects_with_corr_clean,
