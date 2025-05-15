@@ -245,3 +245,201 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path) {
   print(paste("Plot saved to:", output_path))
 }
 
+############### Salinity - read all the csv files and calculate annual avg ####
+read_and_summarize_csv_files <- function(csv_files) {
+  all_annual_averages <- lapply(csv_files, function(file) {
+    cat("📂 Reading file:", file, "\n")
+    
+    # Read raw data with 2 columns: time and value
+    raw_data <- read_csv(file, col_names = c("time", "value"), show_col_types = FALSE)
+    
+    # Remove header row if present
+    data <- raw_data %>% slice(-1)
+    
+    # Try parsing dates and converting value
+    data <- data %>%
+      mutate(
+        parsed_time = parse_date_time(time, orders = c("ymd", "mdy", "dmy")),
+        value = as.numeric(value),
+        site = file_path_sans_ext(basename(file))
+      )
+    
+    # Check for parsing failures
+    failed_rows <- data %>% filter(is.na(parsed_time))
+    
+    if (nrow(failed_rows) > 0) {
+      cat("❌ Failed to parse dates in file:", file, "\n")
+      print(failed_rows)
+    }
+    
+    # If no valid dates, skip to next
+    if (all(is.na(data$parsed_time))) {
+      return(NULL)
+    }
+    
+    # Calculate annual average
+    annual_avg <- data %>%
+      filter(!is.na(parsed_time)) %>%
+      mutate(year = year(parsed_time)) %>%
+      group_by(site, year) %>%
+      summarise(annual_avg = mean(value, na.rm = TRUE), .groups = "drop")
+    
+    return(annual_avg)
+  }) %>%
+    bind_rows()
+  
+  return(all_annual_averages)
+}
+
+##### calculating correlations among sites ####
+compute_site_correlations <- function(all_annual_averages, summary_data_filtered, site_names) {
+  correlation_results <- lapply(site_names, function(site_name) {
+    # Extract annual_avg for the site
+    site_data <- all_annual_averages %>%
+      filter(site == site_name)
+    
+    # Extract the proportion_Int2 values for the matching years
+    site_summary <- summary_data_filtered %>%
+      filter(time %in% site_data$year) %>%
+      select(ID, time, proportion_Int2)
+    
+    # Merge the site data (annual_avg) with the transect data (proportion_Int2) by year
+    merged_data <- site_data %>%
+      inner_join(site_summary, by = c("year" = "time"))
+    
+    # Initialize an empty list to store correlations for each transect
+    site_correlation <- lapply(1:100, function(ID_value) {
+      # Filter data for the given transect ID
+      transect_data <- merged_data %>%
+        filter(ID == ID_value)
+      
+      # Perform the correlation analysis for the current transect (ID)
+      if (nrow(transect_data) > 1) {
+        correlation_result <- cor(
+          transect_data$annual_avg,
+          transect_data$proportion_Int2,
+          use = "complete.obs"
+        )
+        return(data.frame(site = site_name, ID = ID_value, correlation = correlation_result))
+      } else {
+        return(NULL)  # Skip if there is insufficient data for correlation
+      }
+    })
+    
+    # Bind the list of correlations into a data frame for the site
+    site_correlation_df <- bind_rows(site_correlation)
+    return(site_correlation_df)
+  })
+  
+  # Combine all sites into one data frame
+  bind_rows(correlation_results)
+}
+
+### plot correlation maps
+plot_correlation_map <- function(data, point_of_interest, ENP_transects, station_of_interest, color_scale) {
+  leaflet(ENP_transects) %>%
+    addProviderTiles("Esri.WorldImagery") %>%
+    
+    # Add station markers
+    addCircleMarkers(
+      data = data,
+      lng = ~lon_decimal,
+      lat = ~lat_decimal,
+      color = "red",
+      radius = 5,
+      label = ~as.character(Station_ID),
+      labelOptions = labelOptions(
+        noHide = TRUE,
+        direction = "top",
+        textsize = "10px",
+        fontweight = "bold"
+      )
+    ) %>%
+    
+    # Add station of interest as a gold star
+    addCircleMarkers(
+      data = point_of_interest,
+      lng = ~lon_decimal,
+      lat = ~lat_decimal,
+      color = "gold",
+      radius = 10,
+      stroke = TRUE,
+      weight = 3,
+      fillOpacity = 1,
+      label = paste0(station_of_interest),
+      labelOptions = labelOptions(
+        noHide = TRUE,
+        direction = "top",
+        textsize = "12px",
+        fontweight = "bold"
+      )
+    ) %>%
+    
+    # Add transect lines colored by correlation
+    addPolylines(
+      data = ENP_transects,
+      color = ~color_scale(correlation),
+      weight = 3,
+      opacity = 0.7,
+      popup = ~paste0("Correlation: ", round(correlation, 3))
+    ) %>%
+    
+    # Add legend
+    addLegend(
+      "bottomright",
+      pal = color_scale,
+      values = ENP_transects$correlation,
+      title = "Correlation",
+      opacity = 1
+    )
+}
+
+#### calculate dbhydro wl correlations among sites and transects ##
+compute_dbhydro_correlations <- function(all_site_names, dbhydro, summary_data) {
+  total_sites <- length(all_site_names)
+  
+  correlation_results_dbh <- lapply(seq_along(all_site_names), function(i) {
+    site_name <- all_site_names[[i]]
+    
+    # Progress tracking
+    cat(sprintf("Progress: %d%% (%s)\n", round(100 * i / total_sites), site_name))
+    
+    # Extract mean_value for the site from dbhydro
+    site_data <- dbhydro %>%
+      filter(source_file == site_name) %>%
+      distinct(year, .keep_all = TRUE)  # Keep only one row per year
+    
+    # Extract proportion_Int2 values for matching years
+    site_summary <- summary_data %>%
+      filter(time %in% site_data$year) %>%
+      select(ID, time, proportion_Int2) %>%
+      distinct(ID, time, .keep_all = TRUE)
+    
+    # Merge the site data with the transect data by year
+    merged_data <- site_data %>%
+      inner_join(site_summary, by = c("year" = "time"))
+    
+    # Calculate correlation for each ID
+    site_correlation <- lapply(1:100, function(ID_value) {
+      transect_data <- merged_data %>%
+        filter(ID == ID_value)
+      
+      if (nrow(transect_data) > 1) {
+        correlation_result <- cor(
+          transect_data$mean_value,
+          transect_data$proportion_Int2,
+          use = "complete.obs"
+        )
+        return(data.frame(site = site_name, ID = ID_value, correlation = correlation_result))
+      } else {
+        return(NULL)
+      }
+    })
+    
+    # Combine correlations for the site
+    bind_rows(site_correlation)
+  })
+  
+  # Combine results across all sites
+  bind_rows(correlation_results_dbh)
+}
