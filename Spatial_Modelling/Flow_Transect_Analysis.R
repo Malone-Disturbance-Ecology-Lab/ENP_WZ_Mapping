@@ -63,6 +63,7 @@ source( './function_for_plots.R')
 rast.files <- list.files( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE', pattern = "tif")
 
 setwd( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE')
+
 coast <- rast( rast.files) %>% terra::project("+proj=longlat +datum=WGS84") ## need to remove all the xml files
 terra::time(coast) <-  substr(rast.files, 8, 11) %>% as.numeric # get the time out of the list of file names
 
