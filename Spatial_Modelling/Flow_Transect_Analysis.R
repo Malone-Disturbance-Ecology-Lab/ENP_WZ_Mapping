@@ -6,6 +6,10 @@
 ##' @return sfc a simple feature of the transects and their lengths (length.org; Meters)
 ##' @author Sparkle L. Malone, Boya (Paul) Zhang
 ##' 
+##' 
+
+rm(list = ls())
+
 library(terra)
 library(tidyverse)
 library(sf)
@@ -21,7 +25,6 @@ library(maps)
 library(stringr)
 library(leaflet)
 
-rm(list = ls())
 ### This function gets current directory
 get_directory <- function() {
   args <- commandArgs(trailingOnly = FALSE)
@@ -53,6 +56,38 @@ convert_to_decimal <- function(degrees_minutes_seconds) {
   return(decimal_degrees)
 }
 
+polygonize_try <- function(stack) {
+  all_polygons <- list()
+  
+  for (i in 1:nlyr(stack)) {
+    cat("Processing layer:", i, "\n")
+    rast <- stack[[i]]
+    names(rast) <- "value"
+    
+    # Keep only values 1, 2, 3; set others including NA to NA
+    valid_vals <- c(1, 2, 3)
+    mask_rast <- rast
+    vals <- values(rast)
+    vals[!vals %in% valid_vals] <- NA
+    values(mask_rast) <- vals
+    
+    # Polygonize the masked raster (dissolve=FALSE to keep separate polygons for each patch)
+    polys <- as.polygons(mask_rast, dissolve=FALSE)
+    
+    # Filter out polygons with NA value (if any)
+    polys <- polys[!is.na(polys$value), ]
+    
+    # Add time attribute if available
+    polys$time <- time(rast)
+    
+    all_polygons[[i]] <- polys
+  }
+  
+  # Combine all polygons into one sf object
+  result <- do.call(rbind, lapply(all_polygons, st_as_sf))
+  return(result)
+}
+
 # color_scale is for leaflet plotting
 path <- get_directory() ## get current directory path
 setwd(path)
@@ -63,7 +98,9 @@ source( './function_for_plots.R')
 rast.files <- list.files( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE', pattern = "tif")
 
 setwd( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE')
-coast <- rast( rast.files) %>% terra::project("+proj=longlat +datum=WGS84") ## need to remove all the xml files
+#coast <- rast( rast.files) %>% terra::project("+proj=longlat +datum=WGS84") ## need to remove all the xml files
+coast <- rast(rast.files) %>%
+  terra::project("+proj=longlat +datum=WGS84", method = "near")
 terra::time(coast) <-  substr(rast.files, 8, 11) %>% as.numeric # get the time out of the list of file names
 
 coast.factor <- coast %>% as.factor
@@ -87,6 +124,37 @@ coast.1.sf <- polygonize_SpatRast(stack = coast.1)
 coast.2.sf <- polygonize_SpatRast(stack = coast.2)
 coast.3.sf <- polygonize_SpatRast(stack = coast.3)
 
+ENP.transects <- makeTransect(line1 = coast.sf, line2 =  inland.sf, transect.n= 100)
+
+Int.coastal.1 <- Trans_Intersection(ENP.transects,coast.1.sf  )
+Int.coastal.2 <- Trans_Intersection(ENP.transects,coast.2.sf  )
+Int.coastal.3 <- Trans_Intersection(ENP.transects,coast.3.sf  )
+
+coast.polygons <- polygonize_try(coast.factor)
+merged_polygons <- coast.polygons %>%
+  group_by(time, value) %>%
+  summarise(geometry = st_union(geometry), .groups = "drop")
+
+coast.1.sf.new <- merged_polygons %>% 
+  filter(value == 1) %>%  # keep only value == 1
+  st_as_sf()              # ensure it's an sf object
+
+coast.2.sf.new <- merged_polygons %>% 
+  filter(value == 2) %>%  # keep only value == 1
+  st_as_sf()              # ensure it's an sf object
+
+coast.3.sf.new <- merged_polygons %>% 
+  filter(value == 3) %>%  # keep only value == 1
+  st_as_sf()              # ensure it's an sf object
+
+Int.coastal.1.new <- Trans_Intersection(ENP.transects,coast.1.sf.new  )
+Int.coastal.2.new <- Trans_Intersection(ENP.transects,coast.2.sf.new  )
+Int.coastal.3.new <- Trans_Intersection(ENP.transects,coast.3.sf.new  )
+#plot(merged_polygons[[2]]["value"], main = paste("Polygons for Year", merged_by_time[[1]]$time[1]))
+st_write(merged_polygons[3, ], "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/merged_year_2_3.shp", delete_layer = TRUE)
+
+# Write it to a shapefile
+# st_write(first_polygon, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/third_polygon.shp", delete_layer = TRUE)
 # coast.1.first <- coast.1[[1]]
 # coast.1.sub.sf <- polygonize_SpatRast(stack = coast.1.first)
 # coast.2.first <- coast.2[[1]]
@@ -96,12 +164,6 @@ coast.3.sf <- polygonize_SpatRast(stack = coast.3)
 # st_write(coast.1.sub.sf, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/coast_1_shapefile.shp")
 # st_write(coast.2.sub.sf, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/coast_2_shapefile.shp")
 # st_write(coast.3.sub.sf, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/coast_3_shapefile.shp")
-
-ENP.transects <- makeTransect(line1 = coast.sf, line2 =  inland.sf, transect.n= 100)
-
-Int.coastal.1 <- Trans_Intersection(ENP.transects,coast.1.sf  )
-Int.coastal.2 <- Trans_Intersection(ENP.transects,coast.2.sf  )
-Int.coastal.3 <- Trans_Intersection(ENP.transects,coast.3.sf  )
 
 #Int.coastal.1 %>% ggplot() + geom_sf() + facet_wrap(~time)
 #Int.coastal.2 %>% ggplot() + geom_sf() + facet_wrap(~time)
@@ -280,7 +342,7 @@ correlation_results_dbh_df <- bind_rows(correlation_results_dbh) %>%
   distinct()
 
 ############# Plot correlation between WZ proportions and water level mean across transects ###
-station_of_interest <- "NP-EP1"
+station_of_interest <- "NP-EPSW"
 
 # Extract correlation values for site 
 correlation_of_interest <- correlation_results_dbh_df %>%
