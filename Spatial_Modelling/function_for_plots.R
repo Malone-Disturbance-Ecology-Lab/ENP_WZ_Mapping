@@ -29,6 +29,73 @@ get_directory <- function() {
   }
 }
 
+convert_to_decimal <- function(degrees_minutes_seconds) {
+  # Extract degrees, minutes, and seconds
+  degrees <- as.numeric(substr(degrees_minutes_seconds, 1, 2))  # First 2 digits (degrees)
+  minutes <- as.numeric(substr(degrees_minutes_seconds, 3, 4))  # Next 2 digits (minutes)
+  seconds <- as.numeric(substr(degrees_minutes_seconds, 5, 10))  # Last 5 digits (seconds with decimals)
+  
+  # Convert to decimal degrees
+  decimal_degrees <- degrees + (minutes / 60) + (seconds / 3600)
+  
+  return(decimal_degrees)
+}
+
+
+##### Generate buffer for transects ###
+create_rect_buffer_safe <- function(transect, width_meters) {
+  coords <- st_coordinates(transect)
+  p1 <- coords[1, ]
+  p2 <- coords[nrow(coords), ]
+  
+  dx <- p2["X"] - p1["X"]
+  dy <- p2["Y"] - p1["Y"]
+  length <- sqrt(dx^2 + dy^2)
+  
+  perp_x <- -dy / length
+  perp_y <- dx / length
+  
+  hw <- width_meters / 2
+  
+  p1_left  <- c(p1["X"] + perp_x * hw, p1["Y"] + perp_y * hw)
+  p1_right <- c(p1["X"] - perp_x * hw, p1["Y"] - perp_y * hw)
+  p2_left  <- c(p2["X"] + perp_x * hw, p2["Y"] + perp_y * hw)
+  p2_right <- c(p2["X"] - perp_x * hw, p2["Y"] - perp_y * hw)
+  
+  coords_mat <- rbind(p1_left, p2_left, p2_right, p1_right, p1_left)
+  st_polygon(list(coords_mat))
+}
+
+#### Get yearly proportion of land cover ###
+get_yearly_proportions <- function(transect_id, polygon, points, year_col) {
+  inside_idx <- st_intersects(points, polygon, sparse = FALSE)[, 1]
+  pts <- points[inside_idx, ]
+  
+  if (nrow(pts) == 0) return(NULL)
+  
+  vals <- st_drop_geometry(pts)[[year_col]]
+  vals <- vals[!is.na(vals) & vals != 0]
+  
+  if (length(vals) == 0) {
+    return(data.frame(
+      transect_id = transect_id,
+      year = year_col,
+      prop_1 = NA,
+      prop_2 = NA,
+      prop_3 = NA
+    ))
+  }
+  
+  total <- length(vals)
+  data.frame(
+    transect_id = transect_id,
+    year = year_col,
+    prop_1 = sum(vals == 1) / total,
+    prop_2 = sum(vals == 2) / total,
+    prop_3 = sum(vals == 3) / total
+  )
+}
+
 ### Plot trend map time series
 save_sf_plot_as_tiff <- function(output_file, intersection_data) {
   # Create the ggplot with sf data and facet by time
