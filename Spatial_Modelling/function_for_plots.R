@@ -402,6 +402,47 @@ compute_site_correlations <- function(all_annual_averages, summary_data_filtered
   bind_rows(correlation_results)
 }
 
+####### calcualte distance between sites and transects ####
+calculate_distance_join <- function(correlation_salinity_df, data, ENP_transects) {
+  
+  # Step 1: Join lat/lon from data to correlation_salinity_df by Station_ID
+  data_subset <- data %>% select(Station_ID, lat_decimal, lon_decimal)
+  
+  correlation_salinity_df <- correlation_salinity_df %>%
+    left_join(data_subset, by = "Station_ID")
+  
+  # Step 2: Join lat/lon from ENP_transects to correlation_salinity_df by ID
+  ENP_subset <- ENP_transects %>% select(ID, lat, lon)
+  
+  correlation_salinity_df <- correlation_salinity_df %>%
+    left_join(ENP_subset, by = "ID")
+  
+  # Step 3: Rename columns for clarity
+  correlation_salinity_df <- correlation_salinity_df %>%
+    rename(
+      site_lat = lat_decimal,
+      site_lon = lon_decimal,
+      tran_center_lat = lat,
+      tran_center_lon = lon
+    )
+  
+  # Step 4: Convert site and transect lat/lon to sf POINT objects
+  sites_sf <- correlation_salinity_df %>%
+    st_as_sf(coords = c("site_lon", "site_lat"), crs = 4326, remove = FALSE)
+  
+  transects_sf <- correlation_salinity_df %>%
+    st_as_sf(coords = c("tran_center_lon", "tran_center_lat"), crs = 4326, remove = FALSE)
+  
+  # Step 5: Calculate distances (meters) row-wise
+  dist_m <- st_distance(sites_sf, transects_sf, by_element = TRUE)
+  
+  # Step 6: Add distance as a numeric column
+  correlation_salinity_df <- correlation_salinity_df %>%
+    mutate(distance_m = as.numeric(dist_m))
+  
+  return(correlation_salinity_df)
+}
+
 ### plot correlation maps
 plot_correlation_map <- function(data, point_of_interest, ENP_transects, station_of_interest, color_scale) {
   leaflet(ENP_transects) %>%

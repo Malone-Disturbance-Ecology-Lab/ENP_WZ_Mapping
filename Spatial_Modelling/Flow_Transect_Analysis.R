@@ -37,6 +37,19 @@ coast <- rast(rast.files) %>%
 terra::time(coast) <-  substr(rast.files, 8, 11) %>% as.numeric # get the time out of the list of file names
 
 ENP.transects <- makeTransect(line1 = coast.sf, line2 =  inland.sf, transect.n= 100)
+# Calculate the centroid of each transect
+ENP.transects <- ENP.transects %>%
+  mutate(centroid = st_centroid(st_geometry(.)))
+
+cent_coords <- st_coordinates(ENP.transects$centroid)
+
+# Extract latitude and longitude from the centroid
+ENP.transects <- ENP.transects %>%
+  mutate(
+    lon = cent_coords[, 1],
+    lat = cent_coords[, 2]
+  ) %>%
+  select(-centroid)  # remove if centroid is not needed
 
 ### output the results as shapefiles
 # coast.1.first <- coast.1[[1]]
@@ -170,9 +183,15 @@ correlation_df <- compute_site_correlations(
   site_names = all_site_names
 )
 
-correlation_results_df <- bind_rows(correlation_df)
-# View the correlation results
-print(correlation_results_df)
+correlation_salinity_df <- bind_rows(correlation_df)
+correlation_salinity_df <- correlation_salinity_df %>%
+  distinct()
+
+correlation_salinity_df <- correlation_salinity_df %>%
+  mutate(Station_ID = str_remove(site, "_salinity"))
+
+correlation_salinity_df <- calculate_distance_join(correlation_salinity_df, data, ENP.transects)
+print(correlation_salinity_df)
 
 ###################### Map the salinity stations and correlations on a map ####################
 csv_file <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Salinity/WZ_salinity_sites_latlon.csv"  # replace with your file path
@@ -189,10 +208,10 @@ data$lon_decimal <- -abs(data$lon_decimal)
 
 ####################### Plot it on interactive app using leaflet #############
 # Define the color scale
-station_of_interest <- "FLAB08"
+station_of_interest <- "FLAB11"
 ## other sites are: Long stations: FLAB08, 14, 10, 11, 12, Short stations: C111W3, S197, C111JB, C111TC, C111MC, C111AC.
 # Extract correlation values for site FLAB08_salinity
-correlation_of_interest <- correlation_results_df %>%
+correlation_of_interest <- correlation_salinity_df %>%
   filter(site == paste0(station_of_interest, "_salinity")) %>%
   select(ID, correlation)
 
@@ -234,35 +253,14 @@ matching_years <- top_5_data$year  # Get the years from top_5_sites
 
 total_sites <- length(all_site_names)
 summary_data_df$time <- as.double(summary_data_df$time)
-correlation_results_dbh <- compute_dbhydro_correlations(
+correlation_dbh_df <- compute_dbhydro_correlations(
   all_site_names = all_site_names,
   dbhydro = dbhydro,
   summary_data = summary_data_df
 )
 
-#correlation_results_dbh_df <- bind_rows(correlation_results_dbh) %>%
-#  distinct()
-
-#save(correlation_results_dbh_df, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_results_dbh_df.Rdata")
-load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_results_dbh_df.Rdata")
-
-############# Plot correlation between WZ proportions and water level mean across transects ###
-station_of_interest <- "S197_T"
-
-# Extract correlation values for site 
-correlation_of_interest <- correlation_results_dbh_df %>%
-  filter(site == station_of_interest) %>%
-  select(ID, correlation)
-
-# Ensure 'correlation' is numeric and remove NAs
-correlation_of_interest <- correlation_of_interest %>%
-  mutate(correlation = as.numeric(correlation)) %>%
-  filter(!is.na(correlation))
-
-ENP.transects_with_corr <- ENP.transects %>%
-  left_join(correlation_of_interest, by = "ID")
-
-ENP.transects_with_corr_clean <- ENP.transects_with_corr[!is.na(ENP.transects_with_corr$correlation), ]
+correlation_dbh_df <- bind_rows(correlation_dbh_df) %>%
+  distinct()
 
 csv_file <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Hydro/DBhydro/WZ_hydro_sites_latlon.csv"  # replace with your file path
 db_summary <- read.csv(csv_file)
@@ -278,6 +276,30 @@ db_summary$lon_decimal <- -abs(db_summary$lon_decimal)
 db_summary <- db_summary %>%
   mutate(Station_ID = Name)
 
+correlation_dbh_df <- correlation_dbh_df %>%
+  rename(Station_ID = site)
+correlation_dbh_df <- calculate_distance_join(correlation_dbh_df, db_summary, ENP.transects)
+#save(correlation_results_dbh_df, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_results_dbh_df.Rdata")
+load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_results_dbh_df.Rdata")
+
+############# Plot correlation between WZ proportions and water level mean across transects ###
+station_of_interest <- "S197_T"
+
+# Extract correlation values for site 
+correlation_of_interest <- correlation_dbh_df %>%
+  filter(site == station_of_interest) %>%
+  select(ID, correlation)
+
+# Ensure 'correlation' is numeric and remove NAs
+correlation_of_interest <- correlation_of_interest %>%
+  mutate(correlation = as.numeric(correlation)) %>%
+  filter(!is.na(correlation))
+
+ENP.transects_with_corr <- ENP.transects %>%
+  left_join(correlation_of_interest, by = "ID")
+
+ENP.transects_with_corr_clean <- ENP.transects_with_corr[!is.na(ENP.transects_with_corr$correlation), ]
+
 point_of_interest <- db_summary %>%
   filter(Name == station_of_interest)
 
@@ -290,4 +312,143 @@ plot_correlation_map(
 )
 
 ####################### Distance analysis ###########################
+# Make sure ID is treated as a factor (optional for coloring)
+correlation_dbh_df <- correlation_dbh_df %>%
+  filter(!Station_ID %in% c("JBTS", "MBTS", "OYSTERCK"))
 
+correlation_salinity_df <- correlation_salinity_df %>%
+  filter(!grepl("^C", site))
+
+correlation_dbh_df <- correlation_dbh_df %>%
+  mutate(ID = as.factor(ID))
+
+correlation_salinity_df <- correlation_salinity_df %>%
+  mutate(ID = as.factor(ID))
+# Get all unique Station_IDs
+station_ids <- unique(correlation_dbh_df$Station_ID)
+station_salinity_ids <- unique(correlation_salinity_df$Station_ID)
+
+tiff("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_vs_distance_by_station_salinity.tif", 
+     width = 3000, height = 2000, res = 300)  # Adjust size/resolution as needed
+
+# Generate the faceted scatter plot
+ggplot(correlation_salinity_df, aes(x = distance_m, y = correlation)) +
+  geom_point(alpha = 0.7, size = 1.5) +
+  facet_wrap(~ Station_ID, scales = "free") +
+  labs(
+    title = "Correlation vs Distance (per Station)",
+    x = "Distance (m)",
+    y = "Correlation"
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold"),
+    plot.title = element_text(hjust = 0.5),
+    panel.spacing = unit(1, "lines")
+  )
+
+# Close TIFF device to save file
+dev.off()
+##################### Transect based plot (not station based) #########
+p <- ggplot(correlation_dbh_df, aes(x = distance_m, y = correlation)) +
+  geom_point(alpha = 0.6, size = 1) +
+  facet_wrap(~ ID, scales = "free", ncol = 10) +  # 10 columns layout
+  labs(
+    title = "Correlation vs Distance for Each Transect",
+    x = "Distance (m)",
+    y = "Correlation"
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(size = 7),
+    plot.title = element_text(hjust = 0.5),
+    panel.spacing = unit(0.3, "lines"),
+    axis.text = element_text(size = 6),
+    axis.title = element_text(size = 8)
+  )
+
+# Print plot (renders in RStudio plot pane or notebook)
+tiff("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_dbh_by_transect.tif", width = 4000, height = 4000, res = 300)
+print(p)
+dev.off()
+
+####################### Analyzing the trend of wl and salinity change time series ###
+# Convert site to factor (optional but recommended for clear facets)
+all_annual_averages$site <- as.factor(all_annual_averages$site)
+
+dbhydro <- dbhydro %>%
+  rename(site = source_file)
+dbhydro$site <- as.factor(dbhydro$site)
+# Create the plot
+p <- ggplot(dbhydro, aes(x = year, y = mean_value)) +
+#p <- ggplot(all_annual_averages, aes(x = year, y = annual_avg)) +
+  geom_point(size = 1.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "red", size = 1) +  # linear regression line
+  facet_wrap(~ site, scales = "free_y") +
+  labs(
+    title = "Annual Average over Years by Site with Linear Fit",
+    x = "Year",
+    y = "Annual Average"
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold", size = 8),
+    axis.text = element_text(size = 7),
+    axis.title = element_text(size = 9),
+    plot.title = element_text(hjust = 0.5)
+  )
+
+# Save as TIFF (adjust width/height as needed depending on number of sites)
+tiff("annual_hydro_avg_by_site.tif", width = 3000, height = 3000, res = 300)
+print(p)
+dev.off()
+##################### beast analysis to determine the tipping point #####
+
+###################### Modelling the WZ expansion mechanism! ############
+model_result_salinity <- correlation_salinity_df %>%
+  group_by(ID) %>%
+  slice_min(order_by = distance_m, with_ties = FALSE) %>%
+  select(ID, Station_ID, distance_m, correlation)
+
+model_result_dbh <- correlation_dbh_df %>%
+  group_by(ID) %>%
+  slice_min(order_by = distance_m, with_ties = FALSE) %>%
+  select(ID, Station_ID, distance_m, correlation)
+
+## figure out whether WZ is expanding or not?
+## for salinity using summary_data_filtered, for dbh using summary_data_df
+trend_result <- summary_data_df %>%
+  group_by(ID) %>%
+  summarise(
+    slope = coef(lm(proportion_Int2 ~ time))[2],
+    .groups = "drop"
+  ) %>%
+  mutate(WZ_trend_direction = case_when(
+    slope > 0 ~ 1,
+    slope < 0 ~ -1,
+    TRUE ~ 0  # handles slope == 0
+  )) %>%
+  select(ID, WZ_trend_direction)
+
+# Ensure all ID columns are the same type (e.g., character)
+trend_result <- trend_result %>%
+  mutate(ID = as.character(ID))
+
+model_result_salinity <- model_result_salinity %>%
+  mutate(ID = as.character(ID))
+
+model_result_dbh <- model_result_dbh %>%
+  mutate(ID = as.character(ID))
+
+# Join with custom suffixes
+combined_result <- trend_result %>%
+  left_join(model_result_salinity, by = "ID", suffix = c("", ".salinity")) %>%
+  left_join(model_result_dbh, by = "ID", suffix = c("", ".dbh"))
+
+combined_result <- combined_result %>%
+  mutate(mechanism = case_when(
+    WZ_trend_direction > 0 & correlation > 0 & correlation.dbh > 0 ~ "SLR",
+    (WZ_trend_direction > 0 & correlation < 0 & correlation.dbh > 0) |
+      (WZ_trend_direction < 0 & correlation.dbh < 0) ~ "FRW",
+    TRUE ~ "unknown"
+  ))
