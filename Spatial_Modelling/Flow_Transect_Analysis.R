@@ -23,6 +23,24 @@ library(maps)
 library(stringr)
 library(leaflet)
 
+get_directory <- function() {
+  args <- commandArgs(trailingOnly = FALSE)
+  file <- "--file="
+  rstudio <- "RStudio"
+  
+  match <- grep(rstudio, args)
+  if (length(match) > 0) {
+    return(dirname(rstudioapi::getSourceEditorContext()$path))
+  } else {
+    match <- grep(file, args)
+    if (length(match) > 0) {
+      return(dirname(normalizePath(sub(file, "", args[match]))))
+    } else {
+      return(dirname(normalizePath(sys.frames()[[1]]$ofile)))
+    }
+  }
+}
+
 path <- get_directory() ## get current directory path
 setwd(path)
 source( './function_MakeVegetationZoneLayers.R')
@@ -117,11 +135,11 @@ output_shapefile <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modell
 #st_write(ENP.transects, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/full_transect.shp")
 
 ### intersected transect layer
-save_filtered_shapefile("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/test_1984_wz.shp", Int.coastal.2, 1984)
+#save_filtered_shapefile("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/test_1984_wz.shp", Int.coastal.2, 1984)
 
 ### trend plot
 output_file <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/TZ_trend_.tif"
-save_sf_plot_as_tiff(output_file, Int.coastal.3)
+#save_sf_plot_as_tiff(output_file, Int.coastal.3)
 
 ###################### Make Date Present Plot ##############################
 set.seed(123)
@@ -190,10 +208,6 @@ correlation_salinity_df <- correlation_salinity_df %>%
 correlation_salinity_df <- correlation_salinity_df %>%
   mutate(Station_ID = str_remove(site, "_salinity"))
 
-correlation_salinity_df <- calculate_distance_join(correlation_salinity_df, data, ENP.transects)
-print(correlation_salinity_df)
-
-###################### Map the salinity stations and correlations on a map ####################
 csv_file <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Salinity/WZ_salinity_sites_latlon.csv"  # replace with your file path
 data <- read.csv(csv_file)
 data <- na.omit(data)  # Remove rows with N/A values
@@ -206,6 +220,10 @@ data <- data %>% ## this data is the records for salinity and lat/lon
   )
 data$lon_decimal <- -abs(data$lon_decimal)
 
+correlation_salinity_df <- calculate_distance_join(correlation_salinity_df, data, ENP.transects)
+print(correlation_salinity_df)
+
+###################### Map the salinity stations and correlations on a map ####################
 ####################### Plot it on interactive app using leaflet #############
 # Define the color scale
 station_of_interest <- "FLAB11"
@@ -311,6 +329,76 @@ plot_correlation_map(
   color_scale = color_scale
 )
 
+########################## EDEN analysis ##############################
+eden <- read.csv("/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Hydro/EDEN/annual_summary.csv",
+                 stringsAsFactors = FALSE,
+                 fileEncoding = "latin1")
+
+# Step 1: Extract relevant data from all_annual_averages based on top_5_sites
+all_site_names <- eden$source_file
+
+# Filter all_annual_averages for the top 5 sites
+top_5_data <- eden %>%
+  select(year, source_file, mean_value, sd_value)
+
+# Step 2: Filter summary_data_df for the years that match
+matching_years <- top_5_data$year  # Get the years from top_5_sites
+
+total_sites <- length(all_site_names)
+
+correlation_eden_df <- compute_dbhydro_correlations(
+  all_site_names = all_site_names,
+  dbhydro = eden,
+  summary_data = summary_data_df
+)
+
+correlation_eden_df <- bind_rows(correlation_eden_df) %>%
+  distinct()
+
+station_of_interest <- "Upstream_Taylor"
+
+# Extract correlation values for site 
+correlation_of_interest <- correlation_eden_df %>%
+  filter(site == station_of_interest) %>%
+  select(ID, correlation)
+
+# Ensure 'correlation' is numeric and remove NAs
+correlation_of_interest <- correlation_of_interest %>%
+  mutate(correlation = as.numeric(correlation)) %>%
+  filter(!is.na(correlation))
+
+ENP.transects_with_corr <- ENP.transects %>%
+  left_join(correlation_of_interest, by = "ID")
+
+ENP.transects_with_corr_clean <- ENP.transects_with_corr[!is.na(ENP.transects_with_corr$correlation), ]
+
+point_of_interest <- db_summary %>%
+  filter(Name == station_of_interest)
+
+csv_file <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Hydro/EDEN/WZ_hydro_latlon.csv"  # replace with your file path
+eden_summary <- read.csv(csv_file)
+eden_summary <- na.omit(eden_summary)  # Remove rows with N/A values
+# Combine lat and lat_min into decimal degrees
+eden_summary$lat_decimal <- eden_summary$lat + sapply(eden_summary$lat_min, convert_minsec)
+
+# Combine lon and lon_min into decimal degrees (note: negative for West)
+eden_summary$lon_decimal <- eden_summary$lon - sapply(eden_summary$lon_min, convert_minsec)
+
+eden_summary <- eden_summary %>%
+  mutate(Station_ID = WZ_sites)
+
+plot_correlation_map(
+  data = eden_summary,
+  point_of_interest = point_of_interest,
+  ENP_transects = ENP.transects_with_corr_clean,
+  station_of_interest = station_of_interest,
+  color_scale = color_scale
+)
+
+correlation_eden_df <- correlation_eden_df %>%
+  rename(Station_ID = site)
+
+correlation_eden_df <- calculate_distance_join(correlation_eden_df, eden_summary, ENP.transects)
 ####################### Distance analysis ###########################
 # Make sure ID is treated as a factor (optional for coloring)
 correlation_dbh_df <- correlation_dbh_df %>%
@@ -415,9 +503,14 @@ model_result_dbh <- correlation_dbh_df %>%
   slice_min(order_by = distance_m, with_ties = FALSE) %>%
   select(ID, Station_ID, distance_m, correlation)
 
+model_result_eden <- correlation_eden_df %>%
+  group_by(ID) %>%
+  slice_min(order_by = distance_m, with_ties = FALSE) %>%
+  select(ID, Station_ID, distance_m, correlation)
+
 ## figure out whether WZ is expanding or not?
 ## for salinity using summary_data_filtered, for dbh using summary_data_df
-trend_result <- summary_data_df %>%
+trend_result <- summary_data_df %>% ## this figures out whether WZ is expanding
   group_by(ID) %>%
   summarise(
     slope = coef(lm(proportion_Int2 ~ time))[2],
@@ -440,15 +533,21 @@ model_result_salinity <- model_result_salinity %>%
 model_result_dbh <- model_result_dbh %>%
   mutate(ID = as.character(ID))
 
+model_result_eden <- model_result_eden %>%
+  mutate(ID = as.character(ID))
+
 # Join with custom suffixes
 combined_result <- trend_result %>%
   left_join(model_result_salinity, by = "ID", suffix = c("", ".salinity")) %>%
-  left_join(model_result_dbh, by = "ID", suffix = c("", ".dbh"))
+  left_join(model_result_dbh, by = "ID", suffix = c("", ".dbh")) %>%
+  left_join(model_result_eden, by = "ID", suffix = c("", ".eden"))
+
+combined_result <- combined_result %>%
+  mutate(same_sign = sign(correlation.dbh) == sign(correlation.eden))
 
 combined_result <- combined_result %>%
   mutate(mechanism = case_when(
     WZ_trend_direction > 0 & correlation > 0 & correlation.dbh > 0 ~ "SLR",
-    (WZ_trend_direction > 0 & correlation < 0 & correlation.dbh > 0) |
-      (WZ_trend_direction < 0 & correlation.dbh < 0) ~ "FRW",
+    WZ_trend_direction > 0 & correlation < 0 & correlation.dbh > 0 ~ "FRW",
     TRUE ~ "unknown"
   ))

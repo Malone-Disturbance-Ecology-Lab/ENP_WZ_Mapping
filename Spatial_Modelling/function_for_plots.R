@@ -427,6 +427,11 @@ calculate_distance_join <- function(correlation_salinity_df, data, ENP_transects
     )
   
   # Step 4: Convert site and transect lat/lon to sf POINT objects
+  # Step 4: Remove rows with missing coordinates
+  correlation_salinity_df <- correlation_salinity_df %>%
+    filter(!is.na(site_lat), !is.na(site_lon), !is.na(tran_center_lat), !is.na(tran_center_lon))
+  
+  # Then convert to sf POINT objects
   sites_sf <- correlation_salinity_df %>%
     st_as_sf(coords = c("site_lon", "site_lat"), crs = 4326, remove = FALSE)
   
@@ -550,4 +555,31 @@ compute_dbhydro_correlations <- function(all_site_names, dbhydro, summary_data) 
   
   # Combine results across all sites
   bind_rows(correlation_results_dbh)
+}
+
+# Define a cleaner DMS-to-decimal converter
+convert_minsec <- function(minsec_str) {
+  parts <- regmatches(minsec_str, gregexpr("[0-9.]+", minsec_str))[[1]]
+  minutes <- as.numeric(parts[1])
+  seconds <- as.numeric(parts[2])
+  return(minutes / 60 + seconds / 3600)
+}
+
+##### read eden files ###########
+read_and_summarize_eden_files <- function(csv_files) {
+  summaries <- lapply(csv_files, function(file) {
+    # Read CSV, skip first 4 rows, so header is row 5
+    df <- read_csv(file, skip = 4, col_names = TRUE)
+    
+    # Summarize numeric columns by mean (you can customize this)
+    summary <- df %>%
+      summarise(across(where(is.numeric), mean, na.rm = TRUE)) %>%
+      mutate(source_file = file)
+    
+    return(summary)
+  })
+  
+  # Combine all summaries into one data frame
+  all_summary <- bind_rows(summaries)
+  return(all_summary)
 }
