@@ -23,6 +23,7 @@ library(maps)
 library(stringr)
 library(leaflet)
 
+### Section 1 - Setting up and initial analysis
 get_directory <- function() {
   args <- commandArgs(trailingOnly = FALSE)
   file <- "--file="
@@ -70,17 +71,17 @@ ENP.transects <- ENP.transects %>%
   select(-centroid)  # remove if centroid is not needed
 
 ### output the results as shapefiles
-# coast.1.first <- coast.1[[1]]
-# coast.1.sub.sf <- polygonize_SpatRast(stack = coast.1.first)
-# coast.2.first <- coast.2[[1]]
-# coast.2.sub.sf <- polygonize_SpatRast(stack = coast.2.first)
-# coast.3.first <- coast.3[[1]]
-# coast.3.sub.sf <- polygonize_SpatRast(stack = coast.3.first)
-# st_write(coast.1.sub.sf, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/coast_1_shapefile.shp")
-# st_write(coast.2.sub.sf, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/coast_2_shapefile.shp")
-# st_write(coast.3.sub.sf, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/coast_3_shapefile.shp")
+## coast.1.first <- coast.1[[1]]
+## coast.1.sub.sf <- polygonize_SpatRast(stack = coast.1.first)
+## coast.2.first <- coast.2[[1]]
+## coast.2.sub.sf <- polygonize_SpatRast(stack = coast.2.first)
+## coast.3.first <- coast.3[[1]]
+## coast.3.sub.sf <- polygonize_SpatRast(stack = coast.3.first)
+## st_write(coast.1.sub.sf, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/coast_1_shapefile.shp")
+## st_write(coast.2.sub.sf, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/coast_2_shapefile.shp")
+## st_write(coast.3.sub.sf, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/coast_3_shapefile.shp")
 
-######## calculating Ints ########################
+### Section 1 - calculating Intersections 
 ## Step 1 - get central points of the raster
 coords <- as.data.frame(xyFromCell(coast, 1:ncell(coast)))
 values <- as.data.frame(values(coast, na.rm = FALSE))
@@ -130,14 +131,14 @@ colnames(summary_data_df) <- c("ID", "time", "proportion_Int1", "proportion_Int2
 write.csv(summary_data_df, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/summary_data_proportion.csv", row.names = FALSE)
 
 #################### Output the transect layer,  intersection transect layer, and the trend plot  ###########
-### Transect layer
+## Transect layer
 output_shapefile <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/transect.tif"
 #st_write(ENP.transects, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/full_transect.shp")
 
-### intersected transect layer
+## intersected transect layer
 #save_filtered_shapefile("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/test_1984_wz.shp", Int.coastal.2, 1984)
 
-### trend plot
+## trend plot
 output_file <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/TZ_trend_.tif"
 #save_sf_plot_as_tiff(output_file, Int.coastal.3)
 
@@ -466,48 +467,84 @@ all_annual_averages$site <- as.factor(all_annual_averages$site)
 
 dbhydro <- dbhydro %>%
   rename(site = source_file)
+
+eden <- eden %>%
+  rename(site = source_file)
+
 dbhydro$site <- as.factor(dbhydro$site)
-# Create the plot
-p <- ggplot(dbhydro, aes(x = year, y = mean_value)) +
-#p <- ggplot(all_annual_averages, aes(x = year, y = annual_avg)) +
-  geom_point(size = 1.5) +
-  geom_smooth(method = "lm", se = FALSE, color = "red", size = 1) +  # linear regression line
-  facet_wrap(~ site, scales = "free_y") +
-  labs(
-    title = "Annual Average over Years by Site with Linear Fit",
-    x = "Year",
-    y = "Annual Average"
-  ) +
-  theme_minimal() +
-  theme(
-    strip.text = element_text(face = "bold", size = 8),
-    axis.text = element_text(size = 7),
-    axis.title = element_text(size = 9),
-    plot.title = element_text(hjust = 0.5)
+eden$site <- as.factor(eden$site)
+
+eden_cm <- eden %>%
+  mutate(
+    mean_value = mean_value * 30.48,  # Convert to cm
+    site = str_replace(site, "mouth", "Mouth")  # Capitalize 'mouth' to 'Mouth'
   )
 
-# Save as TIFF (adjust width/height as needed depending on number of sites)
-tiff("annual_hydro_avg_by_site.tif", width = 3000, height = 3000, res = 300)
-print(p)
-dev.off()
+dbhydro_cm <- dbhydro %>%
+  mutate(mean_value = mean_value * 30.48)
+
+all_annual_averages <- all_annual_averages %>%
+  rename(mean_value = annual_avg)
+# Estimate wrap width: adjust divisor to tune wrapping
+plot_eden_faceted(eden_cm, wrap_width = 15)
+
+dbhydro_cm_filtered <- dbhydro_cm %>%
+  filter(!str_detect(site, "MBTS|JBTS|OYSTERCK"))
+plot_dbhydro_annual_avg(dbhydro_cm_filtered)
+
+plot_salinity_faceted(all_annual_averages)
+############### Trend analysis based on site measurements ###############
+correlations <- eden %>%
+  filter(!site %in% c("Joe_Bay_2E", "Upstream_Taylor")) %>%  # Exclude sites
+  group_by(site) %>%
+  summarise(
+    correlation = cor(year, mean_value, use = "complete.obs"),
+    .groups = "drop"
+  )
+
+ggplot(correlations, aes(x = reorder(site, correlation), y = correlation)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Correlation between Year and Mean Value by Site",
+       x = "Site",
+       y = "Correlation")
+
+site_data_counts <- dbhydro %>%
+  group_by(source_file) %>%
+  summarise(
+    count = sum(!is.na(mean_value)),
+    .groups = "drop"
+  )
+
+print(site_data_counts)
 ##################### beast analysis to determine the tipping point #####
 
 ###################### Modelling the WZ expansion mechanism! ############
 model_result_salinity <- correlation_salinity_df %>%
+  filter(!grepl("^C", Station_ID)) %>%  # Exclude Station_IDs starting with "C"
   group_by(ID) %>%
-  slice_min(order_by = distance_m, with_ties = FALSE) %>%
-  select(ID, Station_ID, distance_m, correlation)
+  summarise(
+    mean_correlation = mean(correlation, na.rm = TRUE),
+    std_correlation = sd(correlation, na.rm = TRUE),
+    .groups = "drop"
+  )
 
 model_result_dbh <- correlation_dbh_df %>%
+  filter(!grepl("OYSTERCK|MBTS|JBTS", Station_ID)) %>%
   group_by(ID) %>%
-  slice_min(order_by = distance_m, with_ties = FALSE) %>%
-  select(ID, Station_ID, distance_m, correlation)
+  summarise(
+    mean_correlation = mean(correlation, na.rm = TRUE),
+    std_correlation = sd(correlation, na.rm = TRUE),
+    .groups = "drop"
+  )
 
 model_result_eden <- correlation_eden_df %>%
   group_by(ID) %>%
-  slice_min(order_by = distance_m, with_ties = FALSE) %>%
-  select(ID, Station_ID, distance_m, correlation)
-
+  summarise(
+    mean_correlation = mean(correlation, na.rm = TRUE),
+    std_correlation = sd(correlation, na.rm = TRUE),
+    .groups = "drop"
+  )
 ## figure out whether WZ is expanding or not?
 ## for salinity using summary_data_filtered, for dbh using summary_data_df
 trend_result <- summary_data_df %>% ## this figures out whether WZ is expanding
@@ -523,8 +560,24 @@ trend_result <- summary_data_df %>% ## this figures out whether WZ is expanding
   )) %>%
   select(ID, WZ_trend_direction)
 
+trend_result_VZ <- summary_data_df %>% ## this figures out whether WZ is expanding
+  group_by(ID) %>%
+  summarise(
+    slope = coef(lm(proportion_Int1 ~ time))[2],
+    .groups = "drop"
+  ) %>%
+  mutate(VZ_trend_direction = case_when(
+    slope > 0 ~ 1,
+    slope < 0 ~ -1,
+    TRUE ~ 0  # handles slope == 0
+  )) %>%
+  select(ID, VZ_trend_direction)
+
 # Ensure all ID columns are the same type (e.g., character)
 trend_result <- trend_result %>%
+  mutate(ID = as.character(ID))
+
+trend_result_VZ <- trend_result_VZ %>%
   mutate(ID = as.character(ID))
 
 model_result_salinity <- model_result_salinity %>%
@@ -538,16 +591,47 @@ model_result_eden <- model_result_eden %>%
 
 # Join with custom suffixes
 combined_result <- trend_result %>%
+  left_join(trend_result_VZ, by = "ID") %>%
   left_join(model_result_salinity, by = "ID", suffix = c("", ".salinity")) %>%
   left_join(model_result_dbh, by = "ID", suffix = c("", ".dbh")) %>%
   left_join(model_result_eden, by = "ID", suffix = c("", ".eden"))
 
 combined_result <- combined_result %>%
-  mutate(same_sign = sign(correlation.dbh) == sign(correlation.eden))
+  mutate(same_sign = sign(mean_correlation.dbh) == sign(mean_correlation.eden))
 
 combined_result <- combined_result %>%
   mutate(mechanism = case_when(
-    WZ_trend_direction > 0 & correlation > 0 & correlation.dbh > 0 ~ "SLR",
-    WZ_trend_direction > 0 & correlation < 0 & correlation.dbh > 0 ~ "FRW",
+    WZ_trend_direction > 0 & mean_correlation > 0 & mean_correlation.dbh > 0 & VZ_trend_direction > 0 ~ "SLR - WZ up and VZ up",
+    WZ_trend_direction > 0 & mean_correlation > 0 & mean_correlation.dbh > 0 & VZ_trend_direction < 0 ~ "SLR - WZ up and VZ down",
+    WZ_trend_direction > 0 & mean_correlation < 0 & mean_correlation.dbh > 0 ~ "More water - WZ up",
+    WZ_trend_direction > 0 & mean_correlation > 0 & mean_correlation.dbh < 0 ~ "More salinity - WZ up",
+    WZ_trend_direction < 0 & mean_correlation < 0 & mean_correlation.dbh < 0 ~ "More Water (offset salinity) - WZ down",
+    WZ_trend_direction < 0 & mean_correlation > 0 & mean_correlation.dbh > 0 ~ "Less Salinity - WZ down",
+    WZ_trend_direction < 0 & mean_correlation > 0 & mean_correlation.dbh < 0 ~ "More water (less salinity) - WZ down",
     TRUE ~ "unknown"
   ))
+
+combined_result <- combined_result %>% 
+  filter(!if_any(everything(), is.nan))
+
+################## Make plot for the mechanism map !!!! ####################
+combined_result <- combined_result %>%
+  mutate(ID = as.factor(ID))
+
+ENP.transects <- ENP.transects %>%
+  mutate(ID = as.factor(ID))
+
+ENP.transects_with_corr <- ENP.transects %>%
+  left_join(combined_result, by = "ID")
+
+ENP.transects_with_corr_clean <- ENP.transects_with_corr[!is.na(ENP.transects_with_corr$WZ_trend_direction), ]
+plot_mechanism_map(
+  ENP_transects = ENP.transects_with_corr_clean
+)
+
+############### Making plot for all the sites and transects - Data section ####
+plot_station_sources(
+  eden_summary = eden_summary,
+  data = data, 
+  db_summary = db_summary, 
+  ENP_transects = ENP.transects)

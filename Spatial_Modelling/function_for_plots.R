@@ -9,7 +9,7 @@ library(units)
 library(dplyr)
 library(ggplot2)
 library(reshape2)
-
+library(RColorBrewer)
 ################# get current directory #########
 get_directory <- function() {
   args <- commandArgs(trailingOnly = FALSE)
@@ -582,4 +582,177 @@ read_and_summarize_eden_files <- function(csv_files) {
   # Combine all summaries into one data frame
   all_summary <- bind_rows(summaries)
   return(all_summary)
+}
+
+######## plot the mechanism for the figure ###################
+plot_mechanism_map <- function(ENP_transects_with_corr_clean) {
+  
+  # Create a color palette for mechanisms (categorical)
+  mechanism_levels <- unique(ENP_transects_with_corr_clean$mechanism)
+  color_scale <- colorFactor(
+    palette = brewer.pal(min(length(mechanism_levels), 12), "Paired"),
+    domain = mechanism_levels
+  )
+  
+  leaflet(ENP_transects_with_corr_clean) %>%
+    addProviderTiles("Esri.WorldImagery") %>%
+    
+    # Add transect lines colored by mechanism
+    addPolylines(
+      data = ENP_transects_with_corr_clean,
+      color = ~color_scale(mechanism),
+      weight = 3,
+      opacity = 0.7,
+      popup = ~paste0("Mechanism: ", mechanism)
+    ) %>%
+    
+    # Add legend for mechanisms
+    addLegend(
+      "bottomright",
+      pal = color_scale,
+      values = ENP_transects_with_corr_clean$mechanism,
+      title = "Mechanism",
+      opacity = 1
+    )
+}
+
+############## Making a plot with all the sites and transects - Data section ####
+plot_station_sources <- function(eden_summary, data, db_summary, ENP_transects) {
+  
+  legend_df <- data.frame(
+    label = c("EDEN_WL", "DBhydro_Salinity", "DBhydro_WL", "Transects"),
+    color = c("deeppink", "dodgerblue", "limegreen", "orange")
+  )
+  
+  leaflet() %>%
+    addProviderTiles("Esri.WorldImagery") %>%
+    
+    # EDEN markers
+    addCircleMarkers(
+      data = eden_summary,
+      lng = ~lon_decimal,
+      lat = ~lat_decimal,
+      color = "deeppink",
+      radius = 5,
+      label = ~paste0("EDEN: ", Station_ID)
+    ) %>%
+    
+    # DBhydro Salinity markers
+    addCircleMarkers(
+      data = data,
+      lng = ~lon_decimal,
+      lat = ~lat_decimal,
+      color = "dodgerblue",
+      radius = 5,
+      label = ~paste0("Salinity: ", Station_ID)
+    ) %>%
+    
+    # DBhydro WL markers
+    addCircleMarkers(
+      data = db_summary,
+      lng = ~lon_decimal,
+      lat = ~lat_decimal,
+      color = "limegreen",
+      radius = 5,
+      label = ~paste0("WL: ", Station_ID)
+    ) %>%
+    
+    # Transect lines with transparency
+    addPolylines(
+      data = ENP_transects,
+      color = "orange",
+      weight = 2,
+      opacity = 0.4
+    ) %>%
+    
+    # Updated legend
+    addLegend(
+      position = "bottomright",
+      colors = legend_df$color,
+      labels = legend_df$label,
+      title = "Data Source",
+      opacity = 1
+    )
+}
+
+################## Plot station data ######################
+plot_eden_faceted <- function(data, wrap_width = 15, output_file = "eden_faceted_plot.tif") {
+  p <- ggplot(data, aes(x = year, y = mean_value)) +
+    geom_point(size = 1.5) +
+    geom_smooth(method = "lm", se = FALSE, color = "red", size = 1) +
+    facet_wrap(
+      ~ site,
+      scales = "free_y",
+      labeller = labeller(site = label_wrap_gen(width = wrap_width))
+    ) +
+    labs(
+      x = "Year",
+      y = "Annual Average"
+    ) +
+    theme_minimal() +
+    theme(
+      strip.text = element_text(face = "bold", size = 9),
+      axis.text = element_text(size = 12),
+      axis.title = element_text(size = 16),
+      plot.title = element_blank()
+    )
+  
+  # Save the plot
+  tiff(output_file, width = 3000, height = 3000, res = 300)
+  print(p)
+  dev.off()
+}
+
+plot_dbhydro_annual_avg <- function(data, output_file = "annual_dbhydro_avg_by_site.tif") {
+  p <- ggplot(data, aes(x = year, y = mean_value)) +
+    geom_point(size = 1.5) +
+    geom_smooth(method = "lm", se = FALSE, color = "red", size = 1) +
+    facet_wrap(~ site, scales = "free_y") +
+    scale_x_continuous(limits = c(1984, 2024), breaks = seq(1985, 2025, by = 10)) +
+    labs(
+      x = "Year",
+      y = "Water Level (cm)"
+    ) +
+    theme_minimal() +
+    theme(
+      strip.text = element_text(face = "bold", size = 10),
+      axis.text = element_text(size = 10),
+      axis.title = element_text(size = 12),
+      plot.title = element_text(hjust = 0.5)
+    )
+  
+  tiff(output_file, width = 3000, height = 3000, res = 300)
+  print(p)
+  dev.off()
+}
+
+plot_salinity_faceted <- function(data, wrap_width = 15, output_file = "salinity_faceted_plot.tif") {
+  # Filter out sites starting with "C"
+  data_filtered <- data[!grepl("^C", data$site), ]
+  
+  # Create the plot
+  p <- ggplot(data_filtered, aes(x = year, y = mean_value)) +
+    geom_point(size = 1.5) +
+    geom_smooth(method = "lm", se = FALSE, color = "red", size = 1) +
+    facet_wrap(
+      ~ site,
+      scales = "free_y",
+      labeller = labeller(site = label_wrap_gen(width = wrap_width))
+    ) +
+    labs(
+      x = "Year",
+      y = "Annual Average"
+    ) +
+    theme_minimal() +
+    theme(
+      strip.text = element_text(face = "bold", size = 9),
+      axis.text = element_text(size = 12),
+      axis.title = element_text(size = 16),
+      plot.title = element_blank()
+    )
+  
+  # Save the plot to a TIFF file
+  tiff(output_file, width = 3000, height = 3000, res = 300)
+  print(p)
+  dev.off()
 }
