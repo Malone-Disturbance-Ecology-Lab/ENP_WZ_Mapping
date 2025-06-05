@@ -96,6 +96,7 @@ get_yearly_proportions <- function(transect_id, polygon, points, year_col) {
   )
 }
 
+############# transects buffer analysis and counting proprotion of pixels classes ##
 ### Plot trend map time series
 save_sf_plot_as_tiff <- function(output_file, intersection_data) {
   # Create the ggplot with sf data and facet by time
@@ -130,7 +131,64 @@ save_filtered_shapefile <- function(output_path, intersection_data, year) {
     print("Filtered data is not a valid sf object.")
   }
 }
+######## Plot the conceptual figure for the trend of all three classes##
+plot_trend_layers <- function(selected_layers, years = c(1984, 2004, 2024), output_path = "trend_plot.tif") {
+  # Helper to suppress sparse class-2 pixels
+  suppress_sparse_twos <- function(v) {
+    center <- v[5]
+    if (is.na(center) || center != 2) return(center)
+    count_2 <- sum(v == 2, na.rm = TRUE)
+    if (count_2 < 4) return(NA)
+    return(2)
+  }
 
+  # Process each layer
+  processed_layers <- list()
+  for (i in 1:3) {
+    layer <- selected_layers[[i]]
+    layer[layer == 0] <- NA
+    if (i == 1) {
+      processed_layers[[i]] <- focal(layer, w = 3, fun = suppress_sparse_twos, na.policy = "omit", fillvalue = NA)
+    } else {
+      processed_layers[[i]] <- focal(layer, w = 3, fun = mean, na.policy = "omit", na.rm = TRUE)
+    }
+  }
+
+  # Open TIFF device
+  tiff(filename = output_path, width = 12, height = 4, units = "in", res = 300)
+
+  # Layout for 3 plots + 1 legend
+  layout(matrix(c(1, 2, 3, 4), nrow = 1), widths = c(1.1, 1.1, 1.1, 0.4))
+  par(mar = c(1, 1, 2, 1), family = "Times")
+
+  # Colors and breaks
+  cols <- c("#2b83ba", "#d7191c", "#ffffbf")
+  brks <- c(0.5, 1.5, 2.5, 3.5)
+
+  # Plot each subplot
+  for (i in 1:3) {
+    plot(processed_layers[[i]],
+         main = as.character(years[i]),
+         col = cols,
+         breaks = brks,
+         axes = FALSE,
+         legend = FALSE,
+         box = FALSE)
+  }
+
+  # Shared legend in last panel
+  plot.new()
+  legend("center",
+         legend = c("VZ", "WZ", "TZ"),
+         fill = cols,
+         title = "Class",
+         cex = 1.4,
+         bty = "n",
+         x.intersp = 1.2,
+         y.intersp = 1.5)
+
+  dev.off()
+}
 #### Intersection presence
 save_transect_presence_plot <- function(output_path, intersection_data) {
   # Create the plot
@@ -583,6 +641,64 @@ read_and_summarize_eden_files <- function(csv_files) {
   all_summary <- bind_rows(summaries)
   return(all_summary)
 }
+##### plot correlation maps ##################################
+plot_correlation_map <- function(data, point_of_interest, ENP_transects, station_of_interest, color_scale) {
+  leaflet(ENP_transects) %>%
+    addProviderTiles("Esri.WorldImagery") %>%
+    
+    # Add station markers
+    addCircleMarkers(
+      data = data,
+      lng = ~lon_decimal,
+      lat = ~lat_decimal,
+      color = "red",
+      radius = 5,
+      label = ~as.character(Station_ID),
+      labelOptions = labelOptions(
+        noHide = TRUE,
+        direction = "top",
+        textsize = "10px",
+        fontweight = "bold"
+      )
+    ) %>%
+    
+    # Add station of interest as a gold star
+    addCircleMarkers(
+      data = point_of_interest,
+      lng = ~lon_decimal,
+      lat = ~lat_decimal,
+      color = "gold",
+      radius = 10,
+      stroke = TRUE,
+      weight = 3,
+      fillOpacity = 1,
+      label = paste0(station_of_interest),
+      labelOptions = labelOptions(
+        noHide = TRUE,
+        direction = "top",
+        textsize = "12px",
+        fontweight = "bold"
+      )
+    ) %>%
+    
+    # Add transect lines colored by correlation
+    addPolylines(
+      data = ENP_transects,
+      color = ~color_scale(correlation),
+      weight = 3,
+      opacity = 0.7,
+      popup = ~paste0("Correlation: ", round(correlation, 3))
+    ) %>%
+    
+    # Add legend
+    addLegend(
+      "bottomright",
+      pal = color_scale,
+      values = ENP_transects$correlation,
+      title = "Correlation",
+      opacity = 1
+    )
+}
 
 ######## plot the mechanism for the figure ###################
 plot_mechanism_map <- function(ENP_transects_with_corr_clean) {
@@ -676,7 +792,7 @@ plot_station_sources <- function(eden_summary, data, db_summary, ENP_transects) 
 }
 
 ################## Plot station data ######################
-plot_eden_faceted <- function(data, wrap_width = 15, output_file = "eden_faceted_plot.tif") {
+plot_eden_faceted <- function(data, wrap_width = 15, output_file = "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/Results/eden_faceted_plot.tif") {
   p <- ggplot(data, aes(x = year, y = mean_value)) +
     geom_point(size = 1.5) +
     geom_smooth(method = "lm", se = FALSE, color = "red", size = 1) +
@@ -703,7 +819,7 @@ plot_eden_faceted <- function(data, wrap_width = 15, output_file = "eden_faceted
   dev.off()
 }
 
-plot_dbhydro_annual_avg <- function(data, output_file = "annual_dbhydro_avg_by_site.tif") {
+plot_dbhydro_annual_avg <- function(data, output_file = "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/Results/annual_dbhydro_avg_by_site.tif") {
   p <- ggplot(data, aes(x = year, y = mean_value)) +
     geom_point(size = 1.5) +
     geom_smooth(method = "lm", se = FALSE, color = "red", size = 1) +
@@ -726,7 +842,7 @@ plot_dbhydro_annual_avg <- function(data, output_file = "annual_dbhydro_avg_by_s
   dev.off()
 }
 
-plot_salinity_faceted <- function(data, wrap_width = 15, output_file = "salinity_faceted_plot.tif") {
+plot_salinity_faceted <- function(data, wrap_width = 15, output_file = "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/Results/salinity_faceted_plot.tif") {
   # Filter out sites starting with "C"
   data_filtered <- data[!grepl("^C", data$site), ]
   
@@ -755,4 +871,48 @@ plot_salinity_faceted <- function(data, wrap_width = 15, output_file = "salinity
   tiff(output_file, width = 3000, height = 3000, res = 300)
   print(p)
   dev.off()
+}
+
+################ Plot transects signs #########
+plot_transect_signs <- function(ENP.transects_with_corr_clean, column_name, legend_title) {
+  
+  column_sym <- sym(column_name)
+  
+  data_filtered <- ENP.transects_with_corr_clean %>%
+    filter(!is.na(!!column_sym), !!column_sym != 0) %>%
+    mutate(
+      sign_value = ifelse(!!column_sym > 0, "Positive", "Negative"),
+      sign_color = ifelse(sign_value == "Positive", "blue", "red")
+    )
+  
+  leaflet(data_filtered) %>%
+    addProviderTiles("Esri.WorldImagery") %>%
+    addPolylines(
+      color = ~sign_color,
+      weight = 3,
+      opacity = 0.8,
+      popup = ~paste0(column_name, ": ", get(column_name))
+    ) %>%
+    addLegend(
+      position = "bottomright",
+      colors = c("blue", "red"),
+      labels = c("Positive", "Negative"),
+      title = legend_title,
+      opacity = 1
+    )
+}
+
+export_points_shapefile <- function(df, lon_col, lat_col, output_path) {
+  # Convert to sf POINT object
+  sf_obj <- st_as_sf(
+    df,
+    coords = c(lon_col, lat_col),
+    crs = 4326,
+    remove = FALSE
+  )
+  
+  # Write to shapefile, overwrite if exists
+  st_write(sf_obj, output_path, delete_layer = TRUE)
+  
+  message(paste("Shapefile saved to", output_path))
 }

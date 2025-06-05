@@ -70,6 +70,13 @@ ENP.transects <- ENP.transects %>%
   ) %>%
   select(-centroid)  # remove if centroid is not needed
 
+########### Generating intersection between ENP.transects and study area ######
+aoi <- st_read("/Volumes/MaloneLab/Research/Whitezone/Data/SEregion_reprojected_revise.shp")
+
+aoi <- st_transform(aoi, st_crs(ENP.transects))
+transects_in_polygon <- st_intersection(ENP.transects, aoi)
+transects_in_polygon <- transects_in_polygon[, !(names(transects_in_polygon) == "id")]
+st_write(transects_in_polygon, "/Volumes/MaloneLab/Research/Whitezone/Data/Intersected_Transects.shp", delete_layer = TRUE)
 ### output the results as shapefiles
 ## coast.1.first <- coast.1[[1]]
 ## coast.1.sub.sf <- polygonize_SpatRast(stack = coast.1.first)
@@ -87,8 +94,8 @@ coords <- as.data.frame(xyFromCell(coast, 1:ncell(coast)))
 values <- as.data.frame(values(coast, na.rm = FALSE))
 result_df <- cbind(coords, values)
 colnames(result_df) <- c("lon", "lat", as.character(1984:2024))
+
 ## Step 2 - make buffer of transects
-#pixel_size <- res(coast)[1]  # x-resolution (assume square pixels, so x = y)
 transects_utm <- st_transform(ENP.transects, crs = 32617)  # EPSG:32617 = UTM zone 17N
 # Then generate your rectangle buffers using pixel size in meters
 pixel_size_m <- 30  # Or whatever the pixel size is, in meters
@@ -115,13 +122,14 @@ year_cols <- grep("^\\d{4}$", names(points_utm), value = TRUE)
 # results <- lapply(1:nrow(buffer_sf), function(i) {
 #   poly <- buffer_sf$geometry[i]
 #   transect_id <- buffer_sf$transect_id[i]
-#   
+# 
 #   do.call(rbind, lapply(year_cols, function(year_col) {
 #     get_yearly_proportions(transect_id, poly, points_utm, year_col)
 #   }))
 # })
-#save(results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
+# save(results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
 
+## load the results, instead of running the four steps above. 
 load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
 
 # Step 5: Combine all into one data frame
@@ -136,29 +144,32 @@ output_shapefile <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modell
 #st_write(ENP.transects, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/full_transect.shp")
 
 ## intersected transect layer
-#save_filtered_shapefile("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/test_1984_wz.shp", Int.coastal.2, 1984)
+save_filtered_shapefile("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/test_1984_wz.shp", Int.coastal.2, 1984)
 
 ## trend plot
 output_file <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/TZ_trend_.tif"
 #save_sf_plot_as_tiff(output_file, Int.coastal.3)
-
+## plot the new trend based on raster, not shapefiles ###
+selected_layers <- c(coast[[1]], coast[[21]], coast[[41]])
+plot_trend_layers(selected_layers,
+                  output_path = "/Users/bz294/Documents/WhiteZone/Figure/Concept_trend_raw.tif")
 ###################### Make Date Present Plot ##############################
 set.seed(123)
 # Example usage:
-output_path <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Transect_Presence_TZ_.tif"
-save_transect_presence_plot(output_path, Int.coastal.3)
+#output_path <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Transect_Presence_TZ_.tif"
+#save_transect_presence_plot(output_path, Int.coastal.3)
 
 ###################### Make Time Series Plot ##############################
-output_path <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/total_length_by_time_TZ_.tiff"
-save_total_length_plot(Int.coastal.3, output_path)
+#output_path <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/total_length_by_time_TZ_.tiff"
+#save_total_length_plot(Int.coastal.3, output_path)
 ###################### Make Change Rate Plot ##############################
-time_sequence <- 1984:2024
-output_path <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/change_rate_std_plot_WZ_.tiff"
-save_change_rate_std_plot(Int.coastal.2, output_path, time_sequence)
+#time_sequence <- 1984:2024
+#output_path <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/change_rate_std_plot_WZ_.tiff"
+#save_change_rate_std_plot(Int.coastal.2, output_path, time_sequence)
 
 ####################### Area analysis for the raster stack ##########
 plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE", 
-                                                         "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_.tif")
+                                                         "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_2.tif")
 
 ###################### Summarize the annual salinity and water level ###########
 # Set the path to your folder
@@ -168,36 +179,28 @@ folder_path <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Salinity/WZ
 csv_files <- list.files(path = folder_path, pattern = "\\.csv$", full.names = TRUE)
 
 # calcualte the annual avg of salinity values for each site
-all_annual_averages <- read_and_summarize_csv_files(csv_files)
+salinity_data <- read_and_summarize_csv_files(csv_files)
 
-top_5_sites <- all_annual_averages %>%
-  group_by(site) %>%
-  summarise(n_years = n()) %>%
-  arrange(desc(n_years)) %>%
-  slice_head(n = 5)
-
-print(top_5_sites)
 ###################### Correlation analysis between transects and salinity ####
 ### start with long stations
 
-# Step 1: Extract relevant data from all_annual_averages based on top_5_sites
-top_5_site_names <- top_5_sites$site  # Get the site names from top_5_sites
-all_site_names <- all_annual_averages$site
-
-# Filter all_annual_averages for the top 5 sites
-top_5_data <- all_annual_averages %>%
-  filter(site %in% top_5_site_names) %>%
+# Step 1: Extract relevant data from salinity_data based on top_5_sites
+all_site_names <- salinity_data$site
+all_site_names <- all_site_names[!grepl("^C", all_site_names)] ## remove the sites starting from C
+# Filter salinity_data for the top 5 sites
+salinity_data_filtered <- salinity_data %>%
+  filter(site %in% all_site_names) %>%
   select(site, year, annual_avg)
 
 # Step 2: Filter summary_data_df for the years that match
-matching_years <- top_5_data$year  # Get the years from top_5_sites
+matching_years <- salinity_data_filtered$year  # Get the years from top_5_sites
 
 summary_data_filtered <- summary_data_df %>%
   filter(time %in% matching_years)
 
 summary_data_filtered$time <- as.double(summary_data_filtered$time)
 correlation_df <- compute_site_correlations(
-  all_annual_averages = all_annual_averages,
+  all_annual_averages = salinity_data,
   summary_data_filtered = summary_data_filtered,
   site_names = all_site_names
 )
@@ -210,24 +213,24 @@ correlation_salinity_df <- correlation_salinity_df %>%
   mutate(Station_ID = str_remove(site, "_salinity"))
 
 csv_file <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Salinity/WZ_salinity_sites_latlon.csv"  # replace with your file path
-data <- read.csv(csv_file)
-data <- na.omit(data)  # Remove rows with N/A values
+salinity_summary <- read.csv(csv_file)
+salinity_summary <- na.omit(salinity_summary)  # Remove rows with N/A values
 
 # Assuming the 2nd and 3rd columns are Lat and Lon in DDMMSS.SS format
-data <- data %>% ## this data is the records for salinity and lat/lon
+salinity_summary <- salinity_summary %>% ## this data is the records for salinity and lat/lon
   mutate(
-    lat_decimal = sapply(data[[3]], convert_to_decimal),  # Convert lat to decimal degrees
-    lon_decimal = sapply(data[[4]], convert_to_decimal)  # Convert lon to decimal degrees
+    lat_decimal = sapply(salinity_summary[[3]], convert_to_decimal),  # Convert lat to decimal degrees
+    lon_decimal = sapply(salinity_summary[[4]], convert_to_decimal)  # Convert lon to decimal degrees
   )
-data$lon_decimal <- -abs(data$lon_decimal)
+salinity_summary$lon_decimal <- -abs(salinity_summary$lon_decimal)
 
-correlation_salinity_df <- calculate_distance_join(correlation_salinity_df, data, ENP.transects)
+correlation_salinity_df <- calculate_distance_join(correlation_salinity_df, salinity_summary, ENP.transects)
 print(correlation_salinity_df)
 
 ###################### Map the salinity stations and correlations on a map ####################
 ####################### Plot it on interactive app using leaflet #############
 # Define the color scale
-station_of_interest <- "FLAB11"
+station_of_interest <- "FLAB08"
 ## other sites are: Long stations: FLAB08, 14, 10, 11, 12, Short stations: C111W3, S197, C111JB, C111TC, C111MC, C111AC.
 # Extract correlation values for site FLAB08_salinity
 correlation_of_interest <- correlation_salinity_df %>%
@@ -246,24 +249,24 @@ ENP.transects_with_corr_clean <- ENP.transects_with_corr[!is.na(ENP.transects_wi
 
 color_scale <- colorNumeric(palette = "YlGnBu", domain = ENP.transects_with_corr$correlation)
 # Define the color scale based on correlation
-
-point_of_interest <- data %>%
-  filter(Station_ID == station_of_interest)
+salinity_summary <- salinity_summary %>% ungroup()
+point_of_interest <- salinity_summary %>% filter(Station_ID == station_of_interest)
 
 plot_correlation_map(
-  data = data,
+  data = salinity_summary,
   point_of_interest = point_of_interest,
   ENP_transects = ENP.transects_with_corr_clean,
   station_of_interest = station_of_interest,
   color_scale = color_scale
 )
+
 ####################### Water level DBHydro correlation analysis #################################
 dbhydro <- read.csv("/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Hydro/DBhydro/annual_summary.csv", stringsAsFactors = FALSE)
 
-# Step 1: Extract relevant data from all_annual_averages based on top_5_sites
+# Step 1: Extract relevant data from salinity_data based on top_5_sites
 all_site_names <- dbhydro$source_file
-
-# Filter all_annual_averages for the top 5 sites
+all_site_names <- all_site_names[!all_site_names %in% c("JBTS", "MBTS", "OYSTERCK")]
+# Filter salinity_data for the top 5 sites
 top_5_data <- dbhydro %>%
   select(year, source_file, mean_value, sd_value)
 
@@ -299,10 +302,10 @@ correlation_dbh_df <- correlation_dbh_df %>%
   rename(Station_ID = site)
 correlation_dbh_df <- calculate_distance_join(correlation_dbh_df, db_summary, ENP.transects)
 #save(correlation_results_dbh_df, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_results_dbh_df.Rdata")
-load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_results_dbh_df.Rdata")
+#load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_results_dbh_df.Rdata")
 
 ############# Plot correlation between WZ proportions and water level mean across transects ###
-station_of_interest <- "S197_T"
+station_of_interest <- "NP-P37"
 
 # Extract correlation values for site 
 correlation_of_interest <- correlation_dbh_df %>%
@@ -335,10 +338,10 @@ eden <- read.csv("/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Hydro/EDE
                  stringsAsFactors = FALSE,
                  fileEncoding = "latin1")
 
-# Step 1: Extract relevant data from all_annual_averages based on top_5_sites
+# Step 1: Extract relevant data from salinity_data based on top_5_sites
 all_site_names <- eden$source_file
 
-# Filter all_annual_averages for the top 5 sites
+# Filter salinity_data for the top 5 sites
 top_5_data <- eden %>%
   select(year, source_file, mean_value, sd_value)
 
@@ -356,7 +359,7 @@ correlation_eden_df <- compute_dbhydro_correlations(
 correlation_eden_df <- bind_rows(correlation_eden_df) %>%
   distinct()
 
-station_of_interest <- "Upstream_Taylor"
+station_of_interest <- "EPSW"
 
 # Extract correlation values for site 
 correlation_of_interest <- correlation_eden_df %>%
@@ -372,13 +375,22 @@ ENP.transects_with_corr <- ENP.transects %>%
   left_join(correlation_of_interest, by = "ID")
 
 ENP.transects_with_corr_clean <- ENP.transects_with_corr[!is.na(ENP.transects_with_corr$correlation), ]
-
-point_of_interest <- db_summary %>%
+eden_summary <- eden_summary %>%
+  rename(Name = WZ_sites)
+point_of_interest <- eden_summary %>%
   filter(Name == station_of_interest)
 
 csv_file <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Hydro/EDEN/WZ_hydro_latlon.csv"  # replace with your file path
 eden_summary <- read.csv(csv_file)
 eden_summary <- na.omit(eden_summary)  # Remove rows with N/A values
+eden_summary <- eden_summary %>%
+  filter(
+    !startsWith(WZ_sites, "Stillwater") &
+      !startsWith(WZ_sites, "CP") &
+      !startsWith(WZ_sites, "NCL") &
+      !startsWith(WZ_sites, "OL") &
+      !startsWith(WZ_sites, "Trout")
+  )
 # Combine lat and lat_min into decimal degrees
 eden_summary$lat_decimal <- eden_summary$lat + sapply(eden_summary$lat_min, convert_minsec)
 
@@ -420,6 +432,7 @@ station_salinity_ids <- unique(correlation_salinity_df$Station_ID)
 tiff("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_vs_distance_by_station_salinity.tif", 
      width = 3000, height = 2000, res = 300)  # Adjust size/resolution as needed
 
+
 # Generate the faceted scatter plot
 ggplot(correlation_salinity_df, aes(x = distance_m, y = correlation)) +
   geom_point(alpha = 0.7, size = 1.5) +
@@ -439,6 +452,7 @@ ggplot(correlation_salinity_df, aes(x = distance_m, y = correlation)) +
 # Close TIFF device to save file
 dev.off()
 ##################### Transect based plot (not station based) #########
+tiff("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_dbh_by_transect.tif", width = 4000, height = 4000, res = 300)
 p <- ggplot(correlation_dbh_df, aes(x = distance_m, y = correlation)) +
   geom_point(alpha = 0.6, size = 1) +
   facet_wrap(~ ID, scales = "free", ncol = 10) +  # 10 columns layout
@@ -457,13 +471,12 @@ p <- ggplot(correlation_dbh_df, aes(x = distance_m, y = correlation)) +
   )
 
 # Print plot (renders in RStudio plot pane or notebook)
-tiff("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_dbh_by_transect.tif", width = 4000, height = 4000, res = 300)
 print(p)
 dev.off()
 
 ####################### Analyzing the trend of wl and salinity change time series ###
 # Convert site to factor (optional but recommended for clear facets)
-all_annual_averages$site <- as.factor(all_annual_averages$site)
+salinity_data$site <- as.factor(salinity_data$site)
 
 dbhydro <- dbhydro %>%
   rename(site = source_file)
@@ -483,7 +496,7 @@ eden_cm <- eden %>%
 dbhydro_cm <- dbhydro %>%
   mutate(mean_value = mean_value * 30.48)
 
-all_annual_averages <- all_annual_averages %>%
+salinity_data <- salinity_data %>%
   rename(mean_value = annual_avg)
 # Estimate wrap width: adjust divisor to tune wrapping
 plot_eden_faceted(eden_cm, wrap_width = 15)
@@ -492,7 +505,7 @@ dbhydro_cm_filtered <- dbhydro_cm %>%
   filter(!str_detect(site, "MBTS|JBTS|OYSTERCK"))
 plot_dbhydro_annual_avg(dbhydro_cm_filtered)
 
-plot_salinity_faceted(all_annual_averages)
+plot_salinity_faceted(salinity_data)
 ############### Trend analysis based on site measurements ###############
 correlations <- eden %>%
   filter(!site %in% c("Joe_Bay_2E", "Upstream_Taylor")) %>%  # Exclude sites
@@ -517,7 +530,6 @@ site_data_counts <- dbhydro %>%
   )
 
 print(site_data_counts)
-##################### beast analysis to determine the tipping point #####
 
 ###################### Modelling the WZ expansion mechanism! ############
 model_result_salinity <- correlation_salinity_df %>%
@@ -632,6 +644,17 @@ plot_mechanism_map(
 ############### Making plot for all the sites and transects - Data section ####
 plot_station_sources(
   eden_summary = eden_summary,
-  data = data, 
+  data = salinity_summary, 
   db_summary = db_summary, 
   ENP_transects = ENP.transects)
+
+############### Plot WZ trend, signs of correlation with salinity and wl ###
+plot_transect_signs(ENP.transects_with_corr_clean, "WZ_trend_direction", "WZ trend")
+
+########### Output shapefiles for eden and dbhdyro #####
+export_points_shapefile(
+  df = salinity_summary,
+  lon_col = "lon_decimal",
+  lat_col = "lat_decimal",
+  output_path = "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/Results/salinity_summary_points.shp"
+)
