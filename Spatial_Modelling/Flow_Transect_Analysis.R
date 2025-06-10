@@ -153,6 +153,7 @@ output_file <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/T
 selected_layers <- c(coast[[1]], coast[[21]], coast[[41]])
 plot_trend_layers(selected_layers,
                   output_path = "/Users/bz294/Documents/WhiteZone/Figure/Concept_trend_raw.tif")
+
 ###################### Make Date Present Plot ##############################
 set.seed(123)
 # Example usage:
@@ -389,7 +390,8 @@ eden_summary <- eden_summary %>%
       !startsWith(WZ_sites, "CP") &
       !startsWith(WZ_sites, "NCL") &
       !startsWith(WZ_sites, "OL") &
-      !startsWith(WZ_sites, "Trout")
+      !startsWith(WZ_sites, "Trout") &
+      !WZ_sites %in% c("G-3777", "EVER5A", "Joe_Bay_2E", "West_Highway_Creek", "EP1R", "McCormick_Creek", "Taylor_River_at_mouth")
   )
 # Combine lat and lat_min into decimal degrees
 eden_summary$lat_decimal <- eden_summary$lat + sapply(eden_summary$lat_min, convert_minsec)
@@ -452,8 +454,8 @@ ggplot(correlation_salinity_df, aes(x = distance_m, y = correlation)) +
 # Close TIFF device to save file
 dev.off()
 ##################### Transect based plot (not station based) #########
-tiff("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_dbh_by_transect.tif", width = 4000, height = 4000, res = 300)
-p <- ggplot(correlation_dbh_df, aes(x = distance_m, y = correlation)) +
+tiff("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_eden_by_transect.tif", width = 4000, height = 4000, res = 300)
+p <- ggplot(correlation_eden_df, aes(x = distance_m, y = correlation)) +
   geom_point(alpha = 0.6, size = 1) +
   facet_wrap(~ ID, scales = "free", ncol = 10) +  # 10 columns layout
   labs(
@@ -493,6 +495,9 @@ eden_cm <- eden %>%
     site = str_replace(site, "mouth", "Mouth")  # Capitalize 'mouth' to 'Mouth'
   )
 
+eden_cm <- eden_cm %>%
+  filter(site %in% eden_summary$WZ_sites)
+
 dbhydro_cm <- dbhydro %>%
   mutate(mean_value = mean_value * 30.48)
 
@@ -505,6 +510,9 @@ dbhydro_cm_filtered <- dbhydro_cm %>%
   filter(!str_detect(site, "MBTS|JBTS|OYSTERCK"))
 plot_dbhydro_annual_avg(dbhydro_cm_filtered)
 
+salinity_data$site <- str_remove(salinity_data$site, "_salinity$")
+salinity_data <- salinity_data %>% 
+  rename(mean_value = annual_avg)
 plot_salinity_faceted(salinity_data)
 ############### Trend analysis based on site measurements ###############
 correlations <- eden %>%
@@ -585,6 +593,14 @@ trend_result_VZ <- summary_data_df %>% ## this figures out whether WZ is expandi
   )) %>%
   select(ID, VZ_trend_direction)
 
+trend_result_value <- summary_data_df %>%
+  group_by(ID) %>%
+  summarise(
+    trend_Int1 = coef(lm(proportion_Int1 ~ time))[2],
+    trend_Int2 = coef(lm(proportion_Int2 ~ time))[2],
+    trend_Int3 = coef(lm(proportion_Int3 ~ time))[2],
+    .groups = "drop"
+  )
 # Ensure all ID columns are the same type (e.g., character)
 trend_result <- trend_result %>%
   mutate(ID = as.character(ID))
@@ -653,8 +669,8 @@ plot_transect_signs(ENP.transects_with_corr_clean, "WZ_trend_direction", "WZ tre
 
 ########### Output shapefiles for eden and dbhdyro #####
 export_points_shapefile(
-  df = salinity_summary,
+  df = eden_summary,
   lon_col = "lon_decimal",
   lat_col = "lat_decimal",
-  output_path = "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/Results/salinity_summary_points.shp"
+  output_path = "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/Results/eden_summary_points.shp"
 )
