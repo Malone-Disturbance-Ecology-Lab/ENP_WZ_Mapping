@@ -243,7 +243,7 @@ correlation_of_interest <- correlation_of_interest %>%
   mutate(correlation = as.numeric(correlation)) %>%
   filter(!is.na(correlation))
 
-ENP.transects_with_corr <- ENP.transects %>%
+ENP.transects_with_corr <- transects_in_polygon %>%
   left_join(correlation_of_interest, by = "ID")
 
 ENP.transects_with_corr_clean <- ENP.transects_with_corr[!is.na(ENP.transects_with_corr$correlation), ]
@@ -301,7 +301,7 @@ db_summary <- db_summary %>%
 
 correlation_dbh_df <- correlation_dbh_df %>%
   rename(Station_ID = site)
-correlation_dbh_df <- calculate_distance_join(correlation_dbh_df, db_summary, ENP.transects)
+correlation_dbh_df <- calculate_distance_join(correlation_dbh_df, db_summary, transects_in_polygon)
 #save(correlation_results_dbh_df, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_results_dbh_df.Rdata")
 #load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_results_dbh_df.Rdata")
 
@@ -318,7 +318,7 @@ correlation_of_interest <- correlation_of_interest %>%
   mutate(correlation = as.numeric(correlation)) %>%
   filter(!is.na(correlation))
 
-ENP.transects_with_corr <- ENP.transects %>%
+ENP.transects_with_corr <- transects_in_polygon %>%
   left_join(correlation_of_interest, by = "ID")
 
 ENP.transects_with_corr_clean <- ENP.transects_with_corr[!is.na(ENP.transects_with_corr$correlation), ]
@@ -372,7 +372,7 @@ correlation_of_interest <- correlation_of_interest %>%
   mutate(correlation = as.numeric(correlation)) %>%
   filter(!is.na(correlation))
 
-ENP.transects_with_corr <- ENP.transects %>%
+ENP.transects_with_corr <- transects_in_polygon %>%
   left_join(correlation_of_interest, by = "ID")
 
 ENP.transects_with_corr_clean <- ENP.transects_with_corr[!is.na(ENP.transects_with_corr$correlation), ]
@@ -413,7 +413,7 @@ plot_correlation_map(
 correlation_eden_df <- correlation_eden_df %>%
   rename(Station_ID = site)
 
-correlation_eden_df <- calculate_distance_join(correlation_eden_df, eden_summary, ENP.transects)
+correlation_eden_df <- calculate_distance_join(correlation_eden_df, eden_summary, transects_in_polygon)
 ####################### Distance analysis ###########################
 # Make sure ID is treated as a factor (optional for coloring)
 correlation_dbh_df <- correlation_dbh_df %>%
@@ -594,13 +594,35 @@ trend_result_VZ <- summary_data_df %>% ## this figures out whether WZ is expandi
   select(ID, VZ_trend_direction)
 
 trend_result_value <- summary_data_df %>%
+  arrange(ID, time) %>%
   group_by(ID) %>%
   summarise(
-    trend_Int1 = coef(lm(proportion_Int1 ~ time))[2],
-    trend_Int2 = coef(lm(proportion_Int2 ~ time))[2],
-    trend_Int3 = coef(lm(proportion_Int3 ~ time))[2],
+    prop_Int1_1984 = first(proportion_Int1),
+    prop_Int2_1984 = first(proportion_Int2),
+    prop_Int3_1984 = first(proportion_Int3),
+    trend_Int1 = last(proportion_Int1) - first(proportion_Int1),
+    trend_Int2 = last(proportion_Int2) - first(proportion_Int2),
+    trend_Int3 = last(proportion_Int3) - first(proportion_Int3),
     .groups = "drop"
   )
+
+# Join the two data frames by ID
+length_results <- transects_in_polygon %>%
+  mutate(length.org = as.numeric(length.org)) %>%  # Drop units here
+  left_join(trend_result_value, by = "ID") %>%
+  mutate(
+    length_change_Int1 = length.org * trend_Int1,
+    length_change_Int2 = length.org * trend_Int2,
+    length_change_Int3 = length.org * trend_Int3
+  )
+
+output_path <- "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/transects_with_trend.shp"
+st_write(length_results, output_path, delete_layer = TRUE)
+
+############################ Model the liklihood of change in Int1 and Int2 ######
+analyze_length_changes(length_results)
+
+############################### The end ###########################################
 # Ensure all ID columns are the same type (e.g., character)
 trend_result <- trend_result %>%
   mutate(ID = as.character(ID))
@@ -662,7 +684,7 @@ plot_station_sources(
   eden_summary = eden_summary,
   data = salinity_summary, 
   db_summary = db_summary, 
-  ENP_transects = ENP.transects)
+  ENP_transects = transects_in_polygon)
 
 ############### Plot WZ trend, signs of correlation with salinity and wl ###
 plot_transect_signs(ENP.transects_with_corr_clean, "WZ_trend_direction", "WZ trend")

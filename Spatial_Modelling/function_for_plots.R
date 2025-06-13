@@ -699,6 +699,60 @@ plot_correlation_map <- function(data, point_of_interest, ENP_transects, station
       opacity = 1
     )
 }
+############ Model the length change versus initial condition #########
+analyze_length_changes <- function(length_results) {
+  # Fit linear models
+  model_Int1 <- lm(length_change_Int1 ~ prop_Int1_1984 + prop_Int2_1984 + prop_Int3_1984, data = length_results)
+  model_Int2 <- lm(length_change_Int2 ~ prop_Int1_1984 + prop_Int2_1984 + prop_Int3_1984, data = length_results)
+  
+  # Summarize the models
+  summary_Int1 <- summary(model_Int1)
+  summary_Int2 <- summary(model_Int2)
+  
+  # Print summaries
+  cat("=== Linear Model: Length Change in Int1 ===\n")
+  print(summary_Int1)
+  
+  cat("\n=== Linear Model: Length Change in Int2 ===\n")
+  print(summary_Int2)
+  
+  # Basic interpretation logic
+  cat("\n=== Interpretation ===\n")
+  
+  coef1 <- coef(model_Int1)
+  coef2 <- coef(model_Int2)
+  
+  if (!is.na(coef1["prop_Int1_1984"]) && coef1["prop_Int1_1984"] > 0) {
+    cat("Higher initial proportion of Int1 in 1984 tends to increase length change in Int1.\n")
+  } else if (!is.na(coef1["prop_Int1_1984"])) {
+    cat("Higher initial proportion of Int1 in 1984 tends to decrease length change in Int1.\n")
+  }
+  
+  if (!is.na(coef1["prop_Int2_1984"]) && coef1["prop_Int2_1984"] > 0) {
+    cat("Higher initial proportion of Int2 in 1984 tends to increase length change in Int1.\n")
+  } else if (!is.na(coef1["prop_Int2_1984"])) {
+    cat("Higher initial proportion of Int2 in 1984 tends to decrease length change in Int1.\n")
+  }
+  
+  if (!is.na(coef2["prop_Int1_1984"]) && coef2["prop_Int1_1984"] > 0) {
+    cat("Higher initial proportion of Int1 in 1984 tends to increase length change in Int2.\n")
+  } else if (!is.na(coef2["prop_Int1_1984"])) {
+    cat("Higher initial proportion of Int1 in 1984 tends to decrease length change in Int2.\n")
+  }
+  
+  if (!is.na(coef2["prop_Int2_1984"]) && coef2["prop_Int2_1984"] > 0) {
+    cat("Higher initial proportion of Int2 in 1984 tends to increase length change in Int2.\n")
+  } else if (!is.na(coef2["prop_Int2_1984"])) {
+    cat("Higher initial proportion of Int2 in 1984 tends to decrease length change in Int2.\n")
+  }
+  
+  if (!is.na(coef2["prop_Int3_1984"]) && coef2["prop_Int3_1984"] > 0) {
+    cat("Higher initial proportion of Int3 in 1984 tends to increase length change in Int2.\n")
+  } else if (!is.na(coef2["prop_Int3_1984"])) {
+    cat("Higher initial proportion of Int3 in 1984 tends to decrease length change in Int2.\n")
+  }
+}
+
 
 ######## plot the mechanism for the figure ###################
 plot_mechanism_map <- function(ENP_transects_with_corr_clean) {
