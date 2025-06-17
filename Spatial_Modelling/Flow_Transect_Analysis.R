@@ -188,6 +188,8 @@ salinity_data <- read_and_summarize_csv_files(csv_files)
 # Step 1: Extract relevant data from salinity_data based on top_5_sites
 all_site_names <- salinity_data$site
 all_site_names <- all_site_names[!grepl("^C", all_site_names)] ## remove the sites starting from C
+all_site_names <- all_site_names[!grepl("^S197", all_site_names)]
+
 # Filter salinity_data for the top 5 sites
 salinity_data_filtered <- salinity_data %>%
   filter(site %in% all_site_names) %>%
@@ -306,11 +308,11 @@ correlation_dbh_df <- calculate_distance_join(correlation_dbh_df, db_summary, tr
 #load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_results_dbh_df.Rdata")
 
 ############# Plot correlation between WZ proportions and water level mean across transects ###
-station_of_interest <- "NP-P37"
+station_of_interest <- "NP-EP1"
 
 # Extract correlation values for site 
 correlation_of_interest <- correlation_dbh_df %>%
-  filter(site == station_of_interest) %>%
+  filter(Station_ID == station_of_interest) %>%
   select(ID, correlation)
 
 # Ensure 'correlation' is numeric and remove NAs
