@@ -95,7 +95,76 @@ get_yearly_proportions <- function(transect_id, polygon, points, year_col) {
     prop_3 = sum(vals == 3) / total
   )
 }
-
+###################### obtaining the interior points for the time series #####
+# Define main function
+extract_northernmost_points <- function(buffer_sf, points_sf, year_cols) {
+  
+  # Nested helper function
+  find_northernmost_point_value2 <- function(polygon, year_col, points_sf) {
+    # Points inside polygon
+    pts_in_poly <- points_sf[st_within(points_sf, polygon, sparse = FALSE), ]
+    
+    if (nrow(pts_in_poly) == 0) {
+      return(data.frame(
+        Year = year_col,
+        Polygon_ID = polygon$ID,
+        X = NA,
+        Y = NA
+      ))
+    }
+    
+    # Filter points with land cover == 2 for that year
+    pts_in_poly <- pts_in_poly %>% filter(.data[[year_col]] == 2)
+    
+    if (nrow(pts_in_poly) == 0) {
+      return(data.frame(
+        Year = year_col,
+        Polygon_ID = polygon$ID,
+        X = NA,
+        Y = NA
+      ))
+    }
+    
+    coords <- st_coordinates(pts_in_poly)
+    max_y_idx <- which.max(coords[, "Y"])
+    
+    data.frame(
+      Year = year_col,
+      Polygon_ID = polygon$ID,
+      X = coords[max_y_idx, "X"],
+      Y = coords[max_y_idx, "Y"]
+    )
+  }
+  
+  # Add ID to buffer if missing
+  if (!"ID" %in% colnames(buffer_sf)) {
+    buffer_sf$ID <- seq_len(nrow(buffer_sf))
+  }
+  
+  # Initialize results
+  results_list <- list()
+  total_iters <- nrow(buffer_sf) * length(year_cols)
+  pb <- txtProgressBar(min = 0, max = total_iters, style = 3)
+  iter <- 0
+  
+  # Loop over polygons and years
+  for (i in seq_len(nrow(buffer_sf))) {
+    polygon <- buffer_sf[i, ]
+    for (year in year_cols) {
+      res <- find_northernmost_point_value2(polygon, year, points_sf)
+      results_list[[length(results_list) + 1]] <- res
+      
+      iter <- iter + 1
+      setTxtProgressBar(pb, iter)
+    }
+  }
+  
+  close(pb)
+  
+  # Combine and return
+  final_results <- do.call(rbind, results_list)
+  return(final_results)
+}
 ############# transects buffer analysis and counting proprotion of pixels classes ##
 ### Plot trend map time series
 save_sf_plot_as_tiff <- function(output_file, intersection_data) {
@@ -236,6 +305,215 @@ save_total_length_plot <- function(intersection_data, output_path) {
   message(paste("Plot saved as", output_path))
 }
 
+
+##### output the transect segment of interior shift ####
+calculate_signed_distance <- function(sf_1984, sf_2024, output_dir, filename = "connection_interiors_sign.shp") {
+  # Step 1: Get common IDs
+  common_ids <- intersect(sf_1984$Polygon_ID, sf_2024$Polygon_ID)
+  
+  # Step 2: Filter both datasets
+  sf_1984_filtered <- sf_1984 %>%
+    filter(Polygon_ID %in% common_ids) %>%
+    filter(!is.na(Polygon_ID))
+  
+  sf_2024_filtered <- sf_2024 %>%
+    filter(Polygon_ID %in% common_ids) %>%
+    mutate(
+      X_2024 = st_coordinates(.)[, 1],
+      Y_2024 = st_coordinates(.)[, 2]
+    )
+  
+  # Step 3: Merge with coordinates
+  merged <- sf_1984_filtered %>%
+    rename(geometry_1984 = geometry) %>%
+    mutate(
+      X_1984 = st_coordinates(geometry_1984)[, 1],
+      Y_1984 = st_coordinates(geometry_1984)[, 2]
+    ) %>%
+    inner_join(
+      sf_2024_filtered %>%
+        st_drop_geometry() %>%
+        select(Polygon_ID, X_2024, Y_2024),
+      by = "Polygon_ID"
+    ) %>%
+    mutate(
+      geometry_2024 = st_sfc(
+        lapply(seq_len(nrow(.)), function(i) {
+          st_point(c(.$X_2024[i], .$Y_2024[i]))
+        }),
+        crs = st_crs(sf_1984)
+      ),
+      north_flag = ifelse(Y_2024 > Y_1984, 1, -1)
+    )
+  
+  # Step 4: Create lines
+  lines <- st_sfc(
+    lapply(1:nrow(merged), function(i) {
+      pt1 <- c(merged$X_1984[i], merged$Y_1984[i])
+      pt2 <- c(merged$X_2024[i], merged$Y_2024[i])
+      st_linestring(rbind(pt1, pt2))
+    }),
+    crs = st_crs(merged$geometry_1984)
+  )
+  
+  # Step 5: Construct sf with attributes
+  line_sf <- st_sf(
+    Polygon_ID = merged$Polygon_ID,
+    north_flag = merged$north_flag,
+    geometry = lines
+  )
+  
+  # Step 6: Calculate distances
+  line_sf$distance_m <- as.numeric(st_length(line_sf))
+  line_sf$signed_distance_m <- line_sf$distance_m * line_sf$north_flag
+  
+  # Step 7: Summary stats
+  signed_avg_distance <- mean(line_sf$signed_distance_m)
+  max_expansion_distance <- max(line_sf$distance_m[line_sf$north_flag == 1])
+  max_retraction_distance <- max(line_sf$distance_m[line_sf$north_flag == -1])
+  
+  cat("Signed average distance (m):", round(signed_avg_distance, 2), "\n")
+  cat("Maximum expansion distance (m):", round(max_expansion_distance, 2), "\n")
+  cat("Maximum retraction distance (m):", round(max_retraction_distance, 2), "\n")
+  
+  # Step 8: Write to shapefile
+  out_path <- file.path(output_dir, filename)
+  st_write(line_sf, out_path, delete_layer = TRUE)
+  cat("Shapefile written to:", out_path, "\n")
+  
+  # Optionally return the sf object
+  return(line_sf)
+}
+
+#### obtain southern point of the intersects between study area and transects 
+
+get_southernmost_intersections <- function(polygon_input, transects_input, id_field = "ID") {
+  # Load polygon if a file path
+  if (is.character(polygon_input)) {
+    polygon <- st_read(polygon_input)
+  } else {
+    polygon <- polygon_input
+  }
+  
+  # Load transects if a file path
+  if (is.character(transects_input)) {
+    transects <- st_read(transects_input)
+  } else {
+    transects <- transects_input
+  }
+  
+  # Ensure same CRS
+  if (st_crs(transects) != st_crs(polygon)) {
+    transects <- st_transform(transects, st_crs(polygon))
+  }
+  
+  # Extract polygon boundary
+  polygon_boundary <- st_boundary(polygon)
+  
+  # Intersect transects with polygon boundary
+  intersections <- st_intersection(transects, polygon_boundary)
+  
+  # Cast intersection geometries to POINT (to get individual points)
+  intersections_points <- st_cast(intersections, "POINT")
+  
+  # Extract coordinates and add as columns
+  intersections_points <- intersections_points %>%
+    mutate(
+      X = st_coordinates(.)[,1],
+      Y = st_coordinates(.)[,2]
+    )
+  
+  # Select southernmost intersection per transect (minimum Y)
+  southern_points <- intersections_points %>%
+    group_by(across(all_of(id_field))) %>%
+    slice_min(order_by = Y, n = 1) %>%
+    ungroup()
+  
+  # Plot
+  p <- ggplot() +
+    geom_sf(data = polygon, fill = NA, color = "black", size = 0.8) +
+    geom_sf(data = transects, color = "blue", size = 0.7) +
+    geom_sf(data = southern_points, color = "red", size = 3) +
+    theme_minimal() +
+    labs(title = "Southernmost Intersection Points of Transects with Polygon Boundary",
+         subtitle = "Polygon (black), Transects (blue), Southern Points (red)") +
+    theme(
+      plot.title = element_text(face = "bold", size = 16),
+      plot.subtitle = element_text(size = 12)
+    )
+  
+  list(
+    southern_points = southern_points,
+    plot = p
+  )
+}
+
+### Plot the distance to the coast plot ###
+plot_avg_distance_to_coast <- function(final_results, southern, output_path = "avg_distance_to_coastline.tif") {
+  
+  # Prepare southern points data
+  southern_df <- southern$southern_points %>%
+    st_drop_geometry() %>%
+    mutate(ID = as.character(ID)) %>%
+    rename(X_south = X, Y_south = Y)
+  
+  # Prepare final_results
+  final_results <- final_results %>%
+    mutate(Polygon_ID = as.character(Polygon_ID))
+  
+  # Join southern points to final_results
+  final_results_with_south <- final_results %>%
+    left_join(southern_df, by = c("Polygon_ID" = "ID")) %>%
+    mutate(
+      distance = ifelse(
+        is.na(X_south) | is.na(Y_south), NA,
+        sqrt((X - X_south)^2 + (Y - Y_south)^2)
+      )
+    )
+  
+  # Compute average distance per year
+  avg_dist_per_year <- final_results_with_south %>%
+    group_by(Year) %>%
+    summarise(avg_distance = mean(distance, na.rm = TRUE)) %>%
+    ungroup() %>%
+    mutate(Year = as.numeric(as.character(Year)))
+  
+  # Create the plot
+  p <- ggplot(avg_dist_per_year, aes(x = Year, y = avg_distance)) +
+    geom_line(color = "steelblue", size = 1) +
+    geom_point(color = "darkred", size = 2) +
+    theme_minimal(base_family = "Times New Roman", base_size = 14) +
+    labs(
+      x = "Year",
+      y = "Avg Distance to Coast (m)"
+    ) +
+    scale_x_continuous(breaks = seq(1984, 2024, by = 5)) +
+    theme(
+      axis.title = element_text(size = 18),
+      axis.text = element_text(size = 18),
+      plot.background = element_rect(fill = "white", color = NA)
+    )
+  
+  # Save the plot
+  ggsave(
+    filename = output_path,
+    plot = p,
+    width = 8,
+    height = 6,
+    dpi = 300,
+    units = "in",
+    device = "tiff",
+    bg = "white"
+  )
+  
+  # Return the summary table and plot object
+  return(list(
+    avg_dist_per_year = avg_dist_per_year,
+    plot = p
+  ))
+}
+
+
 #### Change rate
 # Function to calculate change rate and standard deviation for each transect ID
 calculate_change_rate_and_std <- function(df, time_sequence) {
@@ -344,25 +622,34 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path) {
   time_series_long$Time <- time_series_long$Time - 1
   time_labels <- c("0" = "1984", "10" = "1994", "20" = "2004", "30" = "2014", "40" = "2024")
   
+  cols <- c("VZ" = "#2b83ba", "WZ" = "#d7191c", "TZ" = "#ffffbf")
+  
   # Create the plot
   p <- ggplot(time_series_long, aes(x = Time, y = PixelCount * 30 * 30 / 1000000, color = Class, group = Class)) +
-    geom_line(size = 1) +
-    geom_point() +
+    geom_line(size = 1.2) +
+    geom_point(size = 3) +
     labs(
       title = "Time Series of Land Cover Area",
       x = "Time Step",
       y = "Area (km²)",
       color = "Class"
     ) +
-    theme_minimal(base_size = 14) +  # Set minimal theme
-    scale_x_continuous(breaks = c(0, 10, 20, 30, 40), labels = time_labels) +  # Change X-axis labels
+    theme_minimal(base_size = 18, base_family = "Times New Roman") +  # Larger base font
+    scale_x_continuous(breaks = c(0, 10, 20, 30, 40), labels = time_labels) +
+    scale_color_manual(values = cols) +
     theme(
-      plot.title = element_text(hjust = 0.5, face = "bold"),  # Center and bold title
-      panel.background = element_rect(fill = "white", color = "white"),  # White background
-      plot.background = element_rect(fill = "white", color = "white"), 
-      legend.background = element_rect(fill = "white"), 
-      legend.key = element_rect(fill = "white")
+      plot.title = element_text(hjust = 0.5, face = "bold", color = "white", size = 24),
+      axis.title = element_text(color = "white", size = 20),
+      axis.text = element_text(color = "white", size = 18),
+      legend.title = element_text(color = "white", size = 18),
+      legend.text = element_text(color = "white", size = 16),
+      panel.background = element_rect(fill = "black", color = "black"),
+      plot.background = element_rect(fill = "black", color = "black"),
+      legend.background = element_rect(fill = "black"),
+      legend.key = element_rect(fill = "black")
     )
+  
+  
   
   # Save the plot as a .tif file
   ggsave(output_path, plot = p, width = 8, height = 6, dpi = 300, device = "tiff")
@@ -416,6 +703,54 @@ read_and_summarize_csv_files <- function(csv_files) {
   return(all_annual_averages)
 }
 
+######### export salinity shapefile ##########
+export_flab_stations <- function(data, out_dir) {
+  # Step 1: Filter Station_IDs that start with "FLAB" and exclude "FLAB16"
+  salinity_summary_filtered <- data %>%
+    filter(grepl("^FLAB", Station_ID) & Station_ID != "FLAB16")
+  
+  # Step 2: Convert to sf object using lat/lon
+  salinity_sf <- st_as_sf(
+    salinity_summary_filtered,
+    coords = c("lon_decimal", "lat_decimal"),
+    crs = 4326  # WGS 84
+  )
+  
+  # Step 3: Write to shapefile in the specified output directory
+  shapefile_path <- file.path(out_dir, "FLAB_stations.shp")
+  st_write(salinity_sf, shapefile_path, delete_dsn = TRUE)
+  
+  message("Shapefile saved to: ", shapefile_path)
+}
+
+############# export hydro shapefile ############################
+export_combined_hydro <- function(db_summary, eden_summary, out_path) {
+  # Step 1: Select relevant columns
+  db_clean <- db_summary %>%
+    select(Station_ID, lat_decimal, lon_decimal)
+  
+  eden_clean <- eden_summary %>%
+    select(Station_ID, lat_decimal, lon_decimal)
+  
+  # Step 2: Combine the two dataframes
+  combined_summary <- bind_rows(db_clean, eden_clean)
+  
+  # Step 3: Remove rows with missing coordinates
+  combined_summary <- combined_summary %>%
+    filter(!is.na(lat_decimal) & !is.na(lon_decimal))
+  
+  # Step 4: Convert to sf object
+  combined_sf <- st_as_sf(
+    combined_summary,
+    coords = c("lon_decimal", "lat_decimal"),
+    crs = 4326  # WGS 84
+  )
+  
+  # Step 5: Write to shapefile
+  st_write(combined_sf, out_path, delete_dsn = TRUE)
+  
+  message("Shapefile written to: ", out_path)
+}
 ##### calculating correlations among sites ####
 compute_site_correlations <- function(all_annual_averages, summary_data_filtered, site_names) {
   correlation_results <- lapply(site_names, function(site_name) {
@@ -755,35 +1090,62 @@ analyze_length_changes <- function(length_results) {
 
 
 ######## plot the mechanism for the figure ###################
-plot_mechanism_map <- function(ENP_transects_with_corr_clean) {
+
+plot_mechanism_map <- function(ENP_transects_with_corr_clean, output_dir, options = leafletOptions(zoomControl = FALSE)) {
+  # Use 'x' as geometry if needed; here assuming original geometry is used
   
-  # Create a color palette for mechanisms (categorical)
+  # Select only ID, mechanism, and geometry columns
+  sf_for_export <- ENP_transects_with_corr_clean %>%
+    select(ID, mechanism, geometry)
+  
+  # Export shapefile
+  out_path <- file.path(output_dir)
+  st_write(sf_for_export, out_path, delete_layer = TRUE)
+  cat("Shapefile written to:", out_path, "\n")
+  
+  # Prepare color palette
   mechanism_levels <- unique(ENP_transects_with_corr_clean$mechanism)
+  custom_colors <- c('#d7191c','#fdae61','#abdda4','#2b83ba')[1:length(mechanism_levels)]
+  
   color_scale <- colorFactor(
-    palette = brewer.pal(min(length(mechanism_levels), 12), "Paired"),
+    palette = custom_colors,
     domain = mechanism_levels
   )
   
+  # Build leaflet map
   leaflet(ENP_transects_with_corr_clean) %>%
     addProviderTiles("Esri.WorldImagery") %>%
-    
-    # Add transect lines colored by mechanism
     addPolylines(
-      data = ENP_transects_with_corr_clean,
       color = ~color_scale(mechanism),
       weight = 3,
       opacity = 0.7,
-      popup = ~paste0("Mechanism: ", mechanism)
-    ) %>%
-    
-    # Add legend for mechanisms
-    addLegend(
-      "bottomright",
-      pal = color_scale,
-      values = ENP_transects_with_corr_clean$mechanism,
-      title = "Mechanism",
-      opacity = 1
-    )
+      popup = ~paste0("ID: ", ID, "<br>",
+                      "Mechanism: ", mechanism)
+    ) 
+    # addLegend(
+    #   "bottomright",
+    #   pal = color_scale,
+    #   values = ENP_transects_with_corr_clean$mechanism,
+    #   title = "Mechanism",
+    #   opacity = 1,  # ensure color blocks are opaque
+    #   labFormat = labelFormat(),        # keep label formatting default
+    #   # This makes legend background solid white
+    #   # (note: background style may depend on browser or leaflet version)
+    #   # Add solid background for the legend container
+    #   # Leaflet's addLegend does not allow direct background setting, but can be controlled via CSS or:
+    #   # Use leaflet.extras::addControl if full custom style is needed
+    #   group = NULL,
+    #   position = "bottomright"
+    # ) %>%
+    # htmlwidgets::onRender("
+    #   function(el, x) {
+    #     var legend = el.querySelector('.leaflet-control .legend');
+    #     if (legend) {
+    #       legend.style.background = 'white';
+    #       legend.style.opacity = '1';
+    #     }
+    #   }
+    # ")
 }
 
 ############## Making a plot with all the sites and transects - Data section ####
@@ -969,4 +1331,44 @@ export_points_shapefile <- function(df, lon_col, lat_col, output_path) {
   st_write(sf_obj, output_path, delete_layer = TRUE)
   
   message(paste("Shapefile saved to", output_path))
+}
+
+########### Plot correlation versus distance ######
+plot_correlation_distance <- function(data, output_dir) {
+  # Create the plot
+  p <- ggplot(data, aes(x = mean_correlation.salinity,
+                        y = mean_correlation.hydro,
+                        color = distance_m)) +
+    geom_point(size = 3) +
+    scale_color_gradientn(colors = c('#feedde', '#fdbe85', '#fd8d3c', '#e6550d', '#a63603')) +
+    theme_minimal(base_family = "Times") +
+    theme(
+      panel.background = element_rect(fill = "black", color = NA),
+      plot.background = element_rect(fill = "black", color = NA),
+      panel.grid.major = element_line(color = "gray30"),
+      panel.grid.minor = element_blank(),
+      axis.text = element_text(color = "white", size = 14),
+      axis.title = element_text(color = "white", size = 16, face = "bold"),
+      plot.title = element_text(color = "white", size = 20, face = "bold", hjust = 0.5),
+      legend.background = element_rect(fill = "black"),
+      legend.text = element_text(color = "white", size = 14),
+      legend.title = element_text(color = "white", size = 16, face = "bold")
+    ) +
+    labs(
+      x = "Mean Correlation with Salinity",
+      y = "Mean Correlation with Hydro",
+      color = "Distance (m)",
+      title = "Relationship Between Correlations and Distance"
+    )
+  
+  # Ensure output directory exists
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
+  
+  # Define file path
+  file_path <- file.path(output_dir, "correlation_distance_plot.tif")
+  
+  # Save the plot
+  ggsave(filename = file_path, plot = p, width = 8, height = 6, dpi = 300, device = "tiff")
 }

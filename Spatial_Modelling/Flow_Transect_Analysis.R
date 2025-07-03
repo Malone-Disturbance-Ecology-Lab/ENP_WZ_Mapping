@@ -22,6 +22,7 @@ library(tools)
 library(maps)
 library(stringr)
 library(leaflet)
+library(ggspatial)
 
 ### Section 1 - Setting up and initial analysis
 get_directory <- function() {
@@ -48,7 +49,11 @@ source( './function_MakeVegetationZoneLayers.R')
 source( './function_Make_TransectLayers.R')
 source( './function_for_plots.R')
 
-rast.files <- list.files( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE', pattern = "tif")
+rast.files <- list.files(
+  path = '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE',
+  pattern = "^raster.*\\.tif$",
+  full.names = TRUE
+)
 
 setwd( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE')
 coast <- rast(rast.files) %>%
@@ -110,7 +115,7 @@ buffer_sfc <- st_sfc(buffer_polys_utm, crs = 32617)
 buffer_sf <- st_sf(transect_id = 1:length(buffer_polys_utm), geometry = buffer_sfc)
 st_write(buffer_sf, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/ENP_transect_rectangles.shp", delete_layer = TRUE)
 
-buffer_polys_wgs84 <- lapply(buffer_polys, function(p) st_transform(st_sfc(p, crs = 32617), crs = 4326)[[1]])
+buffer_polys_wgs84 <- lapply(buffer_polys_utm, function(p) st_transform(st_sfc(p, crs = 32617), crs = 4326)[[1]])
 
 ## Step 3 - Intersection the polygons with points
 points_sf <- st_as_sf(result_df, coords = c("lon", "lat"), crs = 4326)
@@ -128,13 +133,51 @@ year_cols <- grep("^\\d{4}$", names(points_utm), value = TRUE)
 #   }))
 # })
 # save(results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
+############# Output the NORTHERNEST WZ point for each transect ################
+## it takes 4 hours!!
+result_test <- extract_northernmost_points(buffer_sf, points_utm, year_cols)
+#save(final_results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
+load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
+# Filter data for each year
+points_1984 <- final_results %>% filter(Year == 1984)
+points_2024 <- final_results %>% filter(Year == 2024)
+points_1984_clean <- points_1984 %>% filter(!is.na(X) & !is.na(Y))
+points_2024_clean <- points_2024 %>% filter(!is.na(X) & !is.na(Y))
+# Convert to sf object (assuming coordinates are in meters and CRS is known, e.g., EPSG:32617 for UTM zone 17N)
+# Replace EPSG code with your actual CRS if different
+sf_1984 <- st_as_sf(points_1984_clean, coords = c("X", "Y"), crs = 32617)
+sf_2024 <- st_as_sf(points_2024_clean, coords = c("X", "Y"), crs = 32617)
+st_write(sf_1984, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_1984.shp", delete_layer = TRUE)
+st_write(sf_2024, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_2024.shp", delete_layer = TRUE)
 
+##### Output the lines connecting both point shapefiles ###
+# (Assuming the column is named "Polygon_ID")
+common_ids <- intersect(sf_1984$Polygon_ID, sf_2024$Polygon_ID)
+
+############# signs of the connection line ###########
+line_sf <- calculate_signed_distance(
+  sf_1984 = sf_1984,
+  sf_2024 = sf_2024,
+  output_dir = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/"
+)
+line_sf$annual_rate_m <- line_sf$signed_distance_m / 40
+
+################# Calculate the time series of interior boundary to coastline ######
+### first intersect transect with polygon
+southern <- get_southernmost_intersections(
+  polygon_input = "/Users/bz294/Documents/WhiteZone/Points/Shapefiles/SEregion_reprojected_revise.shp",
+  transects_input = ENP.transects,  # or a file path to transects shapefile
+  id_field = "ID"  # change if your transect ID field has a different name
+)
+
+plot_avg_distance_to_coast(final_results, southern, output_path = "/Users/bz294/Documents/WhiteZone/Figure/avg_distance_to_coastline_2.tif")
+############## Experiment ###################################
 ## load the results, instead of running the four steps above. 
 load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
 
 # Step 5: Combine all into one data frame
 summary_data_df <- do.call(rbind, results)
-summary_data_df$time <- as.double(summary_data_df$time)
+summary_data_df$year <- as.double(summary_data_df$year)
 colnames(summary_data_df) <- c("ID", "time", "proportion_Int1", "proportion_Int2", "proportion_Int3")
 write.csv(summary_data_df, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Results/summary_data_proportion.csv", row.names = FALSE)
 
@@ -226,9 +269,13 @@ salinity_summary <- salinity_summary %>% ## this data is the records for salinit
     lon_decimal = sapply(salinity_summary[[4]], convert_to_decimal)  # Convert lon to decimal degrees
   )
 salinity_summary$lon_decimal <- -abs(salinity_summary$lon_decimal)
+out_dir <- "/Users/yourname/Documents/Shapefiles"
+## output the salinity summary shapefile
+export_flab_stations(salinity_summary, '/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/Results/')
 
 correlation_salinity_df <- calculate_distance_join(correlation_salinity_df, salinity_summary, ENP.transects)
 print(correlation_salinity_df)
+
 
 ###################### Map the salinity stations and correlations on a map ####################
 ####################### Plot it on interactive app using leaflet #############
@@ -416,6 +463,13 @@ correlation_eden_df <- correlation_eden_df %>%
   rename(Station_ID = site)
 
 correlation_eden_df <- calculate_distance_join(correlation_eden_df, eden_summary, transects_in_polygon)
+
+################# Combine the db and eden hydro and output a shapefile #####
+export_combined_hydro(
+  db_summary = db_summary,
+  eden_summary = eden_summary,
+  out_path = "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/Results/combined_hydro.shp"
+)
 ####################### Distance analysis ###########################
 # Make sure ID is treated as a factor (optional for coloring)
 correlation_dbh_df <- correlation_dbh_df %>%
@@ -551,16 +605,10 @@ model_result_salinity <- correlation_salinity_df %>%
     .groups = "drop"
   )
 
-model_result_dbh <- correlation_dbh_df %>%
-  filter(!grepl("OYSTERCK|MBTS|JBTS", Station_ID)) %>%
-  group_by(ID) %>%
-  summarise(
-    mean_correlation = mean(correlation, na.rm = TRUE),
-    std_correlation = sd(correlation, na.rm = TRUE),
-    .groups = "drop"
-  )
+### combined correlation_dbh_df and correlation_eden_df
+correlation_hydro_comb <- rbind(correlation_dbh_df, correlation_eden_df)
 
-model_result_eden <- correlation_eden_df %>%
+model_result_hydro <- correlation_hydro_comb %>%
   group_by(ID) %>%
   summarise(
     mean_correlation = mean(correlation, na.rm = TRUE),
@@ -635,36 +683,70 @@ trend_result_VZ <- trend_result_VZ %>%
 model_result_salinity <- model_result_salinity %>%
   mutate(ID = as.character(ID))
 
-model_result_dbh <- model_result_dbh %>%
-  mutate(ID = as.character(ID))
-
-model_result_eden <- model_result_eden %>%
+model_result_hydro <- model_result_hydro %>%
   mutate(ID = as.character(ID))
 
 # Join with custom suffixes
 combined_result <- trend_result %>%
   left_join(trend_result_VZ, by = "ID") %>%
   left_join(model_result_salinity, by = "ID", suffix = c("", ".salinity")) %>%
-  left_join(model_result_dbh, by = "ID", suffix = c("", ".dbh")) %>%
-  left_join(model_result_eden, by = "ID", suffix = c("", ".eden"))
+  left_join(model_result_hydro, by = "ID", suffix = c("", ".dbh"))
 
 combined_result <- combined_result %>%
-  mutate(same_sign = sign(mean_correlation.dbh) == sign(mean_correlation.eden))
+  rename(
+    mean_correlation.hydro = mean_correlation.dbh,
+    std_correlation.hydro = std_correlation.dbh,
+    mean_correlation.salinity = mean_correlation,
+    std_correlation.salinity = std_correlation
+  )
 
+combined_result$ID <- as.numeric(as.character(combined_result$ID))
+line_sf$Polygon_ID <- as.numeric(as.character(line_sf$Polygon_ID))
+WZ_change_mechanism <- merge(combined_result, line_sf, by.x = "ID", by.y = "Polygon_ID")
+
+WZ_change_mechanism <- WZ_change_mechanism %>%
+  select(-starts_with("std"))
+
+combined_result <- combined_result %>%
+  left_join(line_sf %>% select(Polygon_ID, signed_distance_m),
+            by = c("ID" = "Polygon_ID"))
+####################### Checking the WZ mechanism variable #########################
+plot_correlation_distance(WZ_change_mechanism, "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/Results/")
+# Gather for plotting correlation vs distance for salinity and hydro in one plot
+df_long <- WZ_change_mechanism %>%
+  select(mean_correlation.salinity, mean_correlation.hydro, distance_m) %>%
+  pivot_longer(cols = c(mean_correlation.salinity, mean_correlation.hydro), 
+               names_to = "correlation_type", values_to = "correlation_value")
+
+p <- ggplot(df_long, aes(x = distance_m, y = correlation_value, color = correlation_type)) + 
+  geom_point(alpha = 0.6) + 
+  geom_smooth(method = "lm", se = TRUE) + 
+  scale_color_manual(values = c("mean_correlation.salinity" = "blue", "mean_correlation.hydro" = "red"),
+                     labels = c("Salinity", "Hydro")) + 
+  theme_minimal(base_family = "Times") + 
+  labs(x = "Distance (m)", y = "Mean Correlation", color = "Correlation Type",
+       title = "Correlation of Salinity and Hydro with Distance") + 
+  theme(plot.title = element_text(hjust = 0.5, size = 20, face = "bold"))
+
+# Save as TIFF
+ggsave("/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/Results/correlation_vs_distance_new.tif", plot = p, width = 8, height = 6, dpi = 300, units = "in", device = "tiff")
+
+lm_salinity <- lm(mean_correlation.salinity ~ distance_m, data = WZ_change_mechanism)
+lm_hydro <- lm(mean_correlation.hydro ~ distance_m, data = WZ_change_mechanism)
+
+summary(lm_salinity)
+summary(lm_hydro)
+
+thrd <- 0.3
 combined_result <- combined_result %>%
   mutate(mechanism = case_when(
-    WZ_trend_direction > 0 & mean_correlation > 0 & mean_correlation.dbh > 0 & VZ_trend_direction > 0 ~ "SLR - WZ up and VZ up",
-    WZ_trend_direction > 0 & mean_correlation > 0 & mean_correlation.dbh > 0 & VZ_trend_direction < 0 ~ "SLR - WZ up and VZ down",
-    WZ_trend_direction > 0 & mean_correlation < 0 & mean_correlation.dbh > 0 ~ "More water - WZ up",
-    WZ_trend_direction > 0 & mean_correlation > 0 & mean_correlation.dbh < 0 ~ "More salinity - WZ up",
-    WZ_trend_direction < 0 & mean_correlation < 0 & mean_correlation.dbh < 0 ~ "More Water (offset salinity) - WZ down",
-    WZ_trend_direction < 0 & mean_correlation > 0 & mean_correlation.dbh > 0 ~ "Less Salinity - WZ down",
-    WZ_trend_direction < 0 & mean_correlation > 0 & mean_correlation.dbh < 0 ~ "More water (less salinity) - WZ down",
+    signed_distance_m > 0 & mean_correlation.salinity > 0 & mean_correlation.hydro > thrd ~ "SLR - WZ up",
+    signed_distance_m > 0 & mean_correlation.salinity > 0 & mean_correlation.hydro < thrd ~ "Water Management - WZ up",
+    signed_distance_m < 0 & mean_correlation.salinity > 0 & mean_correlation.hydro < thrd ~ "Water Management - WZ down",
+    signed_distance_m < 0 & mean_correlation.salinity > 0 & mean_correlation.hydro > thrd ~ "SLR - WZ down",
     TRUE ~ "unknown"
-  ))
-
-combined_result <- combined_result %>% 
-  filter(!if_any(everything(), is.nan))
+  )) %>%
+  filter(!(mechanism == "unknown" & (is.na(signed_distance_m) | is.na(mean_correlation.salinity) | is.na(mean_correlation.hydro))))
 
 ################## Make plot for the mechanism map !!!! ####################
 combined_result <- combined_result %>%
@@ -677,10 +759,39 @@ ENP.transects_with_corr <- ENP.transects %>%
   left_join(combined_result, by = "ID")
 
 ENP.transects_with_corr_clean <- ENP.transects_with_corr[!is.na(ENP.transects_with_corr$WZ_trend_direction), ]
+ENP.transects_with_corr_clean <- ENP.transects_with_corr_clean %>%
+  mutate(ID = as.character(ID)) %>%
+  left_join(
+    line_sf %>%
+      st_drop_geometry() %>%
+      mutate(Polygon_ID = as.character(Polygon_ID)) %>%
+      select(Polygon_ID, annual_rate_m),
+    by = c("ID" = "Polygon_ID")
+  )
+ENP.transects_with_corr_clean %>%
+  select(ID, annual_rate_m, geometry) %>%
+  st_write("/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/Results/ENP_with_rate.shp", delete_dsn = TRUE)
+
 plot_mechanism_map(
-  ENP_transects = ENP.transects_with_corr_clean
+  ENP_transects = ENP.transects_with_corr_clean,
+  output_dir = '/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/mechanism_03.shp'
 )
 
+
+ggplot(data = ENP.transects_with_corr_clean) +
+  geom_sf(aes(color = mechanism), size = 1) +
+  scale_color_manual(values = c('#d7191c','#fdae61','#abdda4','#2b83ba')) +
+  theme_minimal(base_size = 15) +
+  theme(
+    panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank(),       # remove grid lines
+    axis.text = element_blank(),        # remove axis text
+    axis.ticks = element_blank(),       # remove axis ticks
+    axis.title = element_blank()        # remove axis titles
+  ) +
+  labs(color = "Mechanism")
+
+ggsave("/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/mechanism_map.tif", width = 10, height = 8, dpi = 300)
 ############### Making plot for all the sites and transects - Data section ####
 plot_station_sources(
   eden_summary = eden_summary,
