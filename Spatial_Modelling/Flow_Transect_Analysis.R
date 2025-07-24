@@ -135,18 +135,32 @@ year_cols <- grep("^\\d{4}$", names(points_utm), value = TRUE)
 # save(results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
 ############# Output the NORTHERNEST WZ point for each transect ################
 ## it takes 4 hours!!
-result_test <- extract_northernmost_points(buffer_sf, points_utm, year_cols)
+final_results <- extract_northernmost_points(buffer_sf, points_utm, year_cols)
+south_results <- extract_extreme_points(buffer_sf, points_sf, year_cols, direction = "south")
 #save(final_results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
 load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
 # Filter data for each year
 points_1984 <- final_results %>% filter(Year == 1984)
+points_1994 <- final_results %>% filter(Year == 1994)
 points_2024 <- final_results %>% filter(Year == 2024)
 points_1984_clean <- points_1984 %>% filter(!is.na(X) & !is.na(Y))
 points_2024_clean <- points_2024 %>% filter(!is.na(X) & !is.na(Y))
+points_1994_clean <- points_1994 %>% filter(!is.na(X) & !is.na(Y))
+
+south_1984 <- south_results %>% filter(Year == 1984)
+south_2024 <- south_results %>% filter(Year == 2024)
+south_1984_clean <- south_1984 %>% filter(!is.na(X) & !is.na(Y))
+south_2024_clean <- south_2024 %>% filter(!is.na(X) & !is.na(Y))
+
 # Convert to sf object (assuming coordinates are in meters and CRS is known, e.g., EPSG:32617 for UTM zone 17N)
 # Replace EPSG code with your actual CRS if different
 sf_1984 <- st_as_sf(points_1984_clean, coords = c("X", "Y"), crs = 32617)
 sf_2024 <- st_as_sf(points_2024_clean, coords = c("X", "Y"), crs = 32617)
+sf_1994 <- st_as_sf(points_1994_clean, coords = c("X", "Y"), crs = 32617)
+
+sf_1984_s <- st_as_sf(south_1984_clean, coords = c("X", "Y"), crs = 32617)
+sf_2024_s <- st_as_sf(south_2024_clean, coords = c("X", "Y"), crs = 32617)
+
 st_write(sf_1984, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_1984.shp", delete_layer = TRUE)
 st_write(sf_2024, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_2024.shp", delete_layer = TRUE)
 
@@ -155,11 +169,29 @@ st_write(sf_2024, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modellin
 common_ids <- intersect(sf_1984$Polygon_ID, sf_2024$Polygon_ID)
 
 ############# signs of the connection line ###########
+sf_1994$Polygon_ID <- as.integer(sf_1994$Polygon_ID)
+sf_1984$Polygon_ID <- as.integer(sf_1984$Polygon_ID)
+sf_2024$Polygon_ID <- as.integer(sf_2024$Polygon_ID)
+
+sf_1984_s$Polygon_ID <- as.integer(sf_1984_s$Polygon_ID)
+sf_2024_s$Polygon_ID <- as.integer(sf_2024_s$Polygon_ID)
+
 line_sf <- calculate_signed_distance(
   sf_1984 = sf_1984,
+  #sf_2024 = sf_2024,
   sf_2024 = sf_2024,
-  output_dir = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/"
+  output_dir = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/",
+  filename = "north_interior.shp"
 )
+
+line_sf_s <- calculate_signed_distance(
+  sf_1984 = sf_1984_s,
+  #sf_2024 = sf_2024,
+  sf_2024 = sf_2024_s,
+  output_dir = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/",
+  filename = "south_interior.shp"
+)
+
 line_sf$annual_rate_m <- line_sf$signed_distance_m / 40
 
 ################# Calculate the time series of interior boundary to coastline ######
@@ -737,16 +769,15 @@ lm_hydro <- lm(mean_correlation.hydro ~ distance_m, data = WZ_change_mechanism)
 summary(lm_salinity)
 summary(lm_hydro)
 
-thrd <- 0.3
+thrd <- 0
 combined_result <- combined_result %>%
   mutate(mechanism = case_when(
     signed_distance_m > 0 & mean_correlation.salinity > 0 & mean_correlation.hydro > thrd ~ "SLR - WZ up",
     signed_distance_m > 0 & mean_correlation.salinity > 0 & mean_correlation.hydro < thrd ~ "Water Management - WZ up",
     signed_distance_m < 0 & mean_correlation.salinity > 0 & mean_correlation.hydro < thrd ~ "Water Management - WZ down",
     signed_distance_m < 0 & mean_correlation.salinity > 0 & mean_correlation.hydro > thrd ~ "SLR - WZ down",
-    TRUE ~ "unknown"
-  )) %>%
-  filter(!(mechanism == "unknown" & (is.na(signed_distance_m) | is.na(mean_correlation.salinity) | is.na(mean_correlation.hydro))))
+    TRUE ~ "Unknown or NA"
+  ))
 
 ################## Make plot for the mechanism map !!!! ####################
 combined_result <- combined_result %>%
@@ -774,7 +805,7 @@ ENP.transects_with_corr_clean %>%
 
 plot_mechanism_map(
   ENP_transects = ENP.transects_with_corr_clean,
-  output_dir = '/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/mechanism_03.shp'
+  output_dir = '/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/mechanism_0.shp'
 )
 
 

@@ -165,6 +165,87 @@ extract_northernmost_points <- function(buffer_sf, points_sf, year_cols) {
   final_results <- do.call(rbind, results_list)
   return(final_results)
 }
+
+########## the function provides options on extracting north or south points ####
+extract_extreme_points <- function(buffer_sf, points_sf, year_cols, direction = "north") {
+  
+  # Nested helper function
+  find_extreme_point <- function(polygon, year_col, points_sf, direction) {
+    # Points inside polygon
+    pts_in_poly <- points_sf[st_within(points_sf, polygon, sparse = FALSE), ]
+    
+    if (nrow(pts_in_poly) == 0) {
+      return(data.frame(
+        Year = year_col,
+        Polygon_ID = polygon$ID,
+        X = NA,
+        Y = NA
+      ))
+    }
+    
+    # Filter points with land cover == 2 for that year
+    pts_in_poly <- pts_in_poly %>% filter(.data[[year_col]] == 2)
+    
+    if (nrow(pts_in_poly) == 0) {
+      return(data.frame(
+        Year = year_col,
+        Polygon_ID = polygon$ID,
+        X = NA,
+        Y = NA
+      ))
+    }
+    
+    coords <- st_coordinates(pts_in_poly)
+    
+    idx <- if (direction == "north") {
+      which.max(coords[, "Y"])
+    } else if (direction == "south") {
+      which.min(coords[, "Y"])
+    } else {
+      stop("Invalid direction. Choose either 'north' or 'south'.")
+    }
+    
+    data.frame(
+      Year = year_col,
+      Polygon_ID = polygon$ID,
+      X = coords[idx, "X"],
+      Y = coords[idx, "Y"]
+    )
+  }
+  if (st_crs(points_sf) != st_crs(buffer_sf)) {
+    points_sf <- st_transform(points_sf, st_crs(buffer_sf))
+  }
+  
+  # Add ID to buffer if missing
+  if (!"ID" %in% colnames(buffer_sf)) {
+    buffer_sf$ID <- seq_len(nrow(buffer_sf))
+  }
+  
+  # Initialize results
+  results_list <- list()
+  total_iters <- nrow(buffer_sf) * length(year_cols)
+  pb <- txtProgressBar(min = 0, max = total_iters, style = 3)
+  iter <- 0
+  
+  # Loop over polygons and years
+  for (i in seq_len(nrow(buffer_sf))) {
+    polygon <- buffer_sf[i, ]
+    for (year in year_cols) {
+      res <- find_extreme_point(polygon, year, points_sf, direction)
+      results_list[[length(results_list) + 1]] <- res
+      
+      iter <- iter + 1
+      setTxtProgressBar(pb, iter)
+    }
+  }
+  
+  close(pb)
+  
+  # Combine and return
+  final_results <- do.call(rbind, results_list)
+  return(final_results)
+}
+
 ############# transects buffer analysis and counting proprotion of pixels classes ##
 ### Plot trend map time series
 save_sf_plot_as_tiff <- function(output_file, intersection_data) {
@@ -307,7 +388,7 @@ save_total_length_plot <- function(intersection_data, output_path) {
 
 
 ##### output the transect segment of interior shift ####
-calculate_signed_distance <- function(sf_1984, sf_2024, output_dir, filename = "connection_interiors_sign.shp") {
+calculate_signed_distance <- function(sf_1984, sf_2024, output_dir, filename) {
   # Step 1: Get common IDs
   common_ids <- intersect(sf_1984$Polygon_ID, sf_2024$Polygon_ID)
   
@@ -322,7 +403,7 @@ calculate_signed_distance <- function(sf_1984, sf_2024, output_dir, filename = "
       X_2024 = st_coordinates(.)[, 1],
       Y_2024 = st_coordinates(.)[, 2]
     )
-  
+  print(common_ids)
   # Step 3: Merge with coordinates
   merged <- sf_1984_filtered %>%
     rename(geometry_1984 = geometry) %>%
@@ -648,13 +729,36 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path) {
       legend.background = element_rect(fill = "black"),
       legend.key = element_rect(fill = "black")
     )
-  
-  
-  
+
   # Save the plot as a .tif file
   ggsave(output_path, plot = p, width = 8, height = 6, dpi = 300, device = "tiff")
   
   print(paste("Plot saved to:", output_path))
+  
+  # Compute area in km² (assuming 30m resolution)
+  time_series_df$WZ_area_km2 <- time_series_df$WZ * 30 * 30 / 1e6
+  time_series_df$VZ_area_km2 <- time_series_df$VZ * 30 * 30 / 1e6
+  # Compute year vector assuming first is 1984
+  years <- 1984:(1983 + length(raster_files))
+  time_series_df$Year <- years
+  
+  # Calculate WZ area change rates (km²/year)
+  get_rate <- function(start_year, end_year, df) {
+    start_area <- df$VZ_area_km2[df$Year == start_year]
+    end_area <- df$VZ_area_km2[df$Year == end_year]
+    rate <- (end_area - start_area) / (end_year - start_year)
+    return(rate)
+  }
+  
+  rate_1984_2021 <- get_rate(1984, 2021, time_series_df)
+  rate_2000_2021 <- get_rate(2000, 2021, time_series_df)
+  rate_2010_2021 <- get_rate(2010, 2021, time_series_df)
+  
+  # Print rate results
+  cat("VZ Change Rate (km²/year):\n")
+  cat("1984–2021:", round(rate_1984_2021, 2), "\n")
+  cat("2000–2021:", round(rate_2000_2021, 2), "\n")
+  cat("2010–2021:", round(rate_2010_2021, 2), "\n")
 }
 
 ############### Salinity - read all the csv files and calculate annual avg ####
@@ -1121,31 +1225,31 @@ plot_mechanism_map <- function(ENP_transects_with_corr_clean, output_dir, option
       opacity = 0.7,
       popup = ~paste0("ID: ", ID, "<br>",
                       "Mechanism: ", mechanism)
-    ) 
-    # addLegend(
-    #   "bottomright",
-    #   pal = color_scale,
-    #   values = ENP_transects_with_corr_clean$mechanism,
-    #   title = "Mechanism",
-    #   opacity = 1,  # ensure color blocks are opaque
-    #   labFormat = labelFormat(),        # keep label formatting default
-    #   # This makes legend background solid white
-    #   # (note: background style may depend on browser or leaflet version)
-    #   # Add solid background for the legend container
-    #   # Leaflet's addLegend does not allow direct background setting, but can be controlled via CSS or:
-    #   # Use leaflet.extras::addControl if full custom style is needed
-    #   group = NULL,
-    #   position = "bottomright"
-    # ) %>%
-    # htmlwidgets::onRender("
-    #   function(el, x) {
-    #     var legend = el.querySelector('.leaflet-control .legend');
-    #     if (legend) {
-    #       legend.style.background = 'white';
-    #       legend.style.opacity = '1';
-    #     }
-    #   }
-    # ")
+    ) %>%
+    addLegend(
+      "bottomright",
+      pal = color_scale,
+      values = ENP_transects_with_corr_clean$mechanism,
+      title = "Mechanism",
+      opacity = 1,  # ensure color blocks are opaque
+      labFormat = labelFormat(),        # keep label formatting default
+      # This makes legend background solid white
+      # (note: background style may depend on browser or leaflet version)
+      # Add solid background for the legend container
+      # Leaflet's addLegend does not allow direct background setting, but can be controlled via CSS or:
+      # Use leaflet.extras::addControl if full custom style is needed
+      group = NULL,
+      position = "bottomright"
+    ) %>%
+    htmlwidgets::onRender("
+      function(el, x) {
+        var legend = el.querySelector('.leaflet-control .legend');
+        if (legend) {
+          legend.style.background = 'white';
+          legend.style.opacity = '1';
+        }
+      }
+    ")
 }
 
 ############## Making a plot with all the sites and transects - Data section ####
