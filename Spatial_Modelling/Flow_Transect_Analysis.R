@@ -203,6 +203,7 @@ southern <- get_southernmost_intersections(
 )
 
 plot_avg_distance_to_coast(final_results, southern, output_path = "/Users/bz294/Documents/WhiteZone/Figure/avg_distance_to_coastline_2.tif")
+
 ############## Experiment ###################################
 ## load the results, instead of running the four steps above. 
 load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
