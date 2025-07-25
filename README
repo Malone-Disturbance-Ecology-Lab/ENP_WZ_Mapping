@@ -43,5 +43,7 @@ Flow_Transect_Analysis.R is the work flow that calls all the functions
 Functions:
   1. function_MakeVegetationZoneLayers.R polygonize the rasters
   2. function_Make_TransectLayers.R  make transects
-  3. function_for_plots analyze the intersection results to produce plots
+  3. Spatial_Work_Flow.R analyze the transects and to produce plots (Spatial_Work_Flow is the entire flow, which is splitted into three sub scripts
+      including Spatial_Analysis_step1.R, Spatial_Analysis_step2.R, Spatial_Analysis_step3.R
+  4. function_called_by_main_script.R includes the functions called by Spatial_Work_Flow.R for spatial analysis or generating plots
 
