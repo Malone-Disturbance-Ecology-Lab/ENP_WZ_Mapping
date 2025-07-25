@@ -47,7 +47,7 @@ path <- get_directory() ## get current directory path
 setwd(path)
 source( './function_MakeVegetationZoneLayers.R')
 source( './function_Make_TransectLayers.R')
-source( './function_for_plots.R')
+source( './function_called_by_main_script.R')
 
 rast.files <- list.files(
   path = '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE',
