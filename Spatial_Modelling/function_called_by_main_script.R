@@ -671,53 +671,77 @@ save_change_rate_std_plot <- function(intersection_data, output_path, time_seque
 }
 
 ## Area analysis
-# Define the function
-plot_land_cover_time_series <- function(raster_folder_path, output_path) {
-  
-  # Specify the folder containing your raster files
+plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_years = NULL) {
   raster_files <- list.files(path = raster_folder_path, pattern = "\\.tif$", full.names = TRUE)
-  
-  # Read all rasters into a SpatRaster stack
   raster_stack <- rast(raster_files)
   
-  # Function to count pixels of each class
   count_classes <- function(r) {
     values <- as.vector(r)
-    table(factor(values, levels = c(1, 2, 3)))  # Ensure all classes are counted
+    table(factor(values, levels = c(1, 2, 3)))
   }
   
-  # Apply the function to each raster in the stack
   class_counts <- sapply(1:nlyr(raster_stack), function(i) count_classes(raster_stack[[i]]))
   
-  # Convert to data frame
   time_series_df <- data.frame(
-    Time = seq_along(raster_files),  # Time step index
+    Time = seq_along(raster_files),
     VZ = class_counts[1, ],
     WZ = class_counts[2, ],
     TZ = class_counts[3, ]
   )
   
-  # Reshape for ggplot
-  time_series_long <- melt(time_series_df, id.vars = "Time", variable.name = "Class", value.name = "PixelCount")
+  time_series_df$WZ_area_km2 <- time_series_df$WZ * 30 * 30 / 1e6
+  time_series_df$VZ_area_km2 <- time_series_df$VZ * 30 * 30 / 1e6
+  time_series_df$TZ_area_km2 <- time_series_df$TZ * 30 * 30 / 1e6
+  time_series_df$Year <- 1984:(1983 + length(raster_files))
   
-  time_series_long$Time <- time_series_long$Time - 1
-  time_labels <- c("0" = "1984", "10" = "1994", "20" = "2004", "30" = "2014", "40" = "2024")
+  # Project future years if needed
+  if (!is.null(extend_years)) {
+    extend_to <- max(extend_years)
+    last_observed_year <- max(time_series_df$Year[time_series_df$Year <= 2024])
+    last_values <- time_series_df[time_series_df$Year == last_observed_year, ]
+    
+    # Annual change rates (km²)
+    
+    vz_rate <- 0.4922
+    wz_rate <- 0.4589
+    tz_rate <- -0.9511 ## annual rate of the predicted 25 and 50 yrs scenarios
+    
+    for (y in (last_observed_year + 1):extend_to) {
+      prev_row <- tail(time_series_df, 1)
+      new_row <- data.frame(
+        Time = max(time_series_df$Time) + 1,
+        VZ = NA, WZ = NA, TZ = NA,
+        WZ_area_km2 = prev_row$WZ_area_km2 + wz_rate,
+        VZ_area_km2 = prev_row$VZ_area_km2 + vz_rate,
+        TZ_area_km2 = prev_row$TZ_area_km2 + tz_rate,
+        Year = y
+      )
+      time_series_df <- rbind(time_series_df, new_row)
+    }
+  }
+  
+  # Reshape for plotting
+  df_long <- melt(time_series_df[, c("Year", "WZ_area_km2", "VZ_area_km2", "TZ_area_km2")],
+                  id.vars = "Year",
+                  variable.name = "Class", value.name = "Area_km2")
+  df_long$Class <- gsub("_area_km2", "", df_long$Class)
+  df_long$LineType <- ifelse(df_long$Year > 2024, "Projected", "Observed")
   
   cols <- c("VZ" = "#2b83ba", "WZ" = "#d7191c", "TZ" = "#ffffbf")
   
-  # Create the plot
-  p <- ggplot(time_series_long, aes(x = Time, y = PixelCount * 30 * 30 / 1000000, color = Class, group = Class)) +
+  p <- ggplot(df_long, aes(x = Year, y = Area_km2, color = Class, linetype = LineType)) +
     geom_line(size = 1.2) +
-    geom_point(size = 3) +
+    geom_point(data = subset(df_long, LineType == "Observed"), size = 3) +
+    scale_color_manual(values = cols) +
+    scale_linetype_manual(values = c("Observed" = "solid", "Projected" = "dashed"), guide = "none") +
     labs(
-      title = "Time Series of Land Cover Area",
-      x = "Time Step",
+      #title = "Time Series of Land Cover Area",
+      title = "Predictions of Land Cover Area",
+      x = "Year",
       y = "Area (km²)",
       color = "Class"
     ) +
-    theme_minimal(base_size = 18, base_family = "Times New Roman") +  # Larger base font
-    scale_x_continuous(breaks = c(0, 10, 20, 30, 40), labels = time_labels) +
-    scale_color_manual(values = cols) +
+    theme_minimal(base_size = 18, base_family = "Times New Roman") +
     theme(
       plot.title = element_text(hjust = 0.5, face = "bold", color = "white", size = 24),
       axis.title = element_text(color = "white", size = 20),
@@ -729,37 +753,70 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path) {
       legend.background = element_rect(fill = "black"),
       legend.key = element_rect(fill = "black")
     )
-
-  # Save the plot as a .tif file
+  
   ggsave(output_path, plot = p, width = 8, height = 6, dpi = 300, device = "tiff")
   
   print(paste("Plot saved to:", output_path))
   
-  # Compute area in km² (assuming 30m resolution)
-  time_series_df$WZ_area_km2 <- time_series_df$WZ * 30 * 30 / 1e6
-  time_series_df$VZ_area_km2 <- time_series_df$VZ * 30 * 30 / 1e6
-  # Compute year vector assuming first is 1984
-  years <- 1984:(1983 + length(raster_files))
-  time_series_df$Year <- years
-  
-  # Calculate WZ area change rates (km²/year)
-  get_rate <- function(start_year, end_year, df) {
-    start_area <- df$VZ_area_km2[df$Year == start_year]
-    end_area <- df$VZ_area_km2[df$Year == end_year]
-    rate <- (end_area - start_area) / (end_year - start_year)
+  # Print change rates
+  get_rate <- function(start_year, end_year, df, col) {
+    s <- df[df$Year == start_year, col]
+    e <- df[df$Year == end_year, col]
+    rate <- (e - s) / (end_year - start_year)
     return(rate)
   }
   
-  rate_1984_2021 <- get_rate(1984, 2021, time_series_df)
-  rate_2000_2021 <- get_rate(2000, 2021, time_series_df)
-  rate_2010_2021 <- get_rate(2010, 2021, time_series_df)
-  
-  # Print rate results
   cat("VZ Change Rate (km²/year):\n")
-  cat("1984–2021:", round(rate_1984_2021, 2), "\n")
-  cat("2000–2021:", round(rate_2000_2021, 2), "\n")
-  cat("2010–2021:", round(rate_2010_2021, 2), "\n")
+  cat("1984–2021:", round(get_rate(1984, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
+  cat("2000–2021:", round(get_rate(2000, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
+  cat("2010–2021:", round(get_rate(2010, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
 }
+
+################# Calculate the average rate for WZ (41 years) and VZ (11 years) ##
+calculate_avg_weighted_diff <- function(option = 1,
+                                        year1 = 2013,
+                                        year2 = 2024,
+                                        layer = "proportion_Int1",
+                                        summary_data_df,
+                                        transects_in_polygon) {
+  # Validate layer input
+  if (!layer %in% c("proportion_Int1", "proportion_Int2")) {
+    stop("Invalid layer. Choose either 'proportion_Int1' or 'proportion_Int2'.")
+  }
+  
+  # Filter summary_data_df based on region option
+  summary_filtered <- switch(
+    as.character(option),
+    "1" = summary_data_df[summary_data_df$ID >= 61, ],
+    "2" = summary_data_df[summary_data_df$ID >= 39 & summary_data_df$ID < 61, ],
+    "3" = summary_data_df[summary_data_df$ID < 39, ],
+    stop("Invalid option. Choose 1, 2, or 3.")
+  )
+  
+  # Subset for both years
+  prop_year1 <- subset(summary_filtered, time == year1, select = c("ID", layer))
+  prop_year2 <- subset(summary_filtered, time == year2, select = c("ID", layer))
+  
+  # Rename columns for merging
+  names(prop_year1)[2] <- "prop_year1"
+  names(prop_year2)[2] <- "prop_year2"
+  
+  # Merge by ID
+  prop_diff_df <- merge(prop_year1, prop_year2, by = "ID")
+  
+  # Calculate difference
+  prop_diff_df$prop_diff <- prop_diff_df$prop_year2 - prop_diff_df$prop_year1
+  
+  # Merge with transect lengths
+  prop_diff_df <- merge(prop_diff_df, transects_in_polygon, by = "ID")
+  
+  # Multiply by length
+  prop_diff_df$weighted_diff <- prop_diff_df$prop_diff * prop_diff_df$length.org
+  
+  # Return average weighted difference divided by number of years
+  return(mean(prop_diff_df$weighted_diff, na.rm = TRUE) / (year2 - year1))
+}
+
 
 ############### Salinity - read all the csv files and calculate annual avg ####
 read_and_summarize_csv_files <- function(csv_files) {

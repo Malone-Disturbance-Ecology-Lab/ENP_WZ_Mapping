@@ -43,7 +43,7 @@ names(salinity_data) <- station_names
 for (i in seq_along(salinity_data)) {
   station <- names(salinity_data)[i]
   df <- salinity_data[[i]]
-  write.csv(df, file = paste0(station, "_salinity.csv"), row.names = FALSE)
+  write.csv(df, file = paste0(station, "_salinity_east.csv"), row.names = FALSE)
 }
 
 station_info <- get_station_metadata("FLAB11")

@@ -23,6 +23,7 @@ library(maps)
 library(stringr)
 library(leaflet)
 library(ggspatial)
+library(purrr)
 
 ### Section 1 - Setting up and initial analysis
 get_directory <- function() {
@@ -135,8 +136,8 @@ year_cols <- grep("^\\d{4}$", names(points_utm), value = TRUE)
 # save(results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
 ############# Output the NORTHERNEST WZ point for each transect ################
 ## it takes 4 hours!!
-final_results <- extract_northernmost_points(buffer_sf, points_utm, year_cols)
-south_results <- extract_extreme_points(buffer_sf, points_sf, year_cols, direction = "south")
+#final_results <- extract_northernmost_points(buffer_sf, points_utm, year_cols)
+#south_results <- extract_extreme_points(buffer_sf, points_sf, year_cols, direction = "south")
 #save(final_results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
 load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
 # Filter data for each year
@@ -181,7 +182,7 @@ line_sf <- calculate_signed_distance(
   #sf_2024 = sf_2024,
   sf_2024 = sf_2024,
   output_dir = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/",
-  filename = "north_interior.shp"
+  filename = "north_interior_.shp"
 )
 
 line_sf_s <- calculate_signed_distance(
@@ -223,8 +224,8 @@ output_shapefile <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modell
 save_filtered_shapefile("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/test_1984_wz.shp", Int.coastal.2, 1984)
 
 ## trend plot
-output_file <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/TZ_trend_.tif"
-#save_sf_plot_as_tiff(output_file, Int.coastal.3)
+output_file <- "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/TZ_trend_new.tif"
+save_sf_plot_as_tiff(output_file, Int.coastal.3)
 ## plot the new trend based on raster, not shapefiles ###
 selected_layers <- c(coast[[1]], coast[[21]], coast[[41]])
 plot_trend_layers(selected_layers,
@@ -246,8 +247,25 @@ set.seed(123)
 
 ####################### Area analysis for the raster stack ##########
 plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE", 
-                                                         "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_2.tif")
+                                                         "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_test.tif")
 
+plot_land_cover_time_series(
+  raster_folder_path = "/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE",
+  output_path = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_extended.tif",
+  extend_years = c(2049, 2074)
+)
+
+######################## Calculate average change rate for each of the three subregions ################
+result <- calculate_avg_weighted_diff(
+  option = 1,
+  year1 = 1984,
+  year2 = 2024,
+  layer = "proportion_Int2",
+  summary_data_df = summary_data_df,
+  transects_in_polygon = transects_in_polygon
+)
+
+print(result)
 ###################### Summarize the annual salinity and water level ###########
 # Set the path to your folder
 folder_path <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Salinity/WZ_salinity_data"
@@ -348,7 +366,7 @@ dbhydro <- read.csv("/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Hydro/
 
 # Step 1: Extract relevant data from salinity_data based on top_5_sites
 all_site_names <- dbhydro$source_file
-all_site_names <- all_site_names[!all_site_names %in% c("JBTS", "MBTS", "OYSTERCK")]
+all_site_names <- all_site_names[!all_site_names %in% c("JBTS", "OYSTERCK")]
 # Filter salinity_data for the top 5 sites
 top_5_data <- dbhydro %>%
   select(year, source_file, mean_value, sd_value)
@@ -369,7 +387,7 @@ correlation_dbh_df <- bind_rows(correlation_dbh_df) %>%
 
 csv_file <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Hydro/DBhydro/WZ_hydro_sites_latlon.csv"  # replace with your file path
 db_summary <- read.csv(csv_file)
-db_summary <- na.omit(db_summary)  # Remove rows with N/A values
+db_summary <- db_summary[!duplicated(db_summary[[1]]), ]
 
 # Assuming the 2nd and 3rd columns are Lat and Lon in DDMMSS.SS format
 db_summary <- db_summary %>% ## this data is the records for salinity and lat/lon
@@ -694,12 +712,12 @@ length_results <- transects_in_polygon %>%
   mutate(length.org = as.numeric(length.org)) %>%  # Drop units here
   left_join(trend_result_value, by = "ID") %>%
   mutate(
-    length_change_Int1 = length.org * trend_Int1,
-    length_change_Int2 = length.org * trend_Int2,
-    length_change_Int3 = length.org * trend_Int3
+    length_change_Int1 = length.org * trend_Int1 / 40,
+    length_change_Int2 = length.org * trend_Int2 / 40,
+    length_change_Int3 = length.org * trend_Int3 / 40
   )
 
-output_path <- "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/transects_with_trend.shp"
+output_path <- "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/transects_with_trend_.shp"
 st_write(length_results, output_path, delete_layer = TRUE)
 
 ############################ Model the liklihood of change in Int1 and Int2 ######
@@ -806,7 +824,7 @@ ENP.transects_with_corr_clean %>%
 
 plot_mechanism_map(
   ENP_transects = ENP.transects_with_corr_clean,
-  output_dir = '/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/mechanism_0.shp'
+  output_dir = '/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/mechanism_0_.shp'
 )
 
 
