@@ -40,7 +40,8 @@ aoi.points$latitude <- coordinates[, 1]
 aoi.points$longitude <- coordinates[, 2] 
 
 # reformat the point file: 
-m <- aoi.points %>% as.data.frame %>% select("latitude", "longitude", "ID")
+#m <- aoi.points %>% as.data.frame %>% select("latitude", "longitude", "ID")
+m <- as.data.frame(aoi.points)[, c("latitude", "longitude", "ID")]
 m2 <-data.matrix(m) # Make the file a matrix of lat, long, and ID
 
 ## set the order by the 'ID' column

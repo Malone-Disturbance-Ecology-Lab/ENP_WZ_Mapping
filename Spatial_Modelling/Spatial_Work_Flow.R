@@ -24,6 +24,7 @@ library(stringr)
 library(leaflet)
 library(ggspatial)
 library(purrr)
+library(scales)
 
 ### Section 1 - Setting up and initial analysis
 get_directory <- function() {
@@ -453,7 +454,7 @@ total_sites <- length(all_site_names)
 
 correlation_eden_df <- compute_dbhydro_correlations(
   all_site_names = all_site_names,
-  dbhydro = eden,
+  wl = eden,
   summary_data = summary_data_df
 )
 
@@ -708,17 +709,105 @@ trend_result_value <- summary_data_df %>%
   )
 
 # Join the two data frames by ID
-length_results <- transects_in_polygon %>%
+rate_results <- transects_in_polygon %>%
   mutate(length.org = as.numeric(length.org)) %>%  # Drop units here
   left_join(trend_result_value, by = "ID") %>%
   mutate(
     length_change_Int1 = length.org * trend_Int1 / 40,
     length_change_Int2 = length.org * trend_Int2 / 40,
     length_change_Int3 = length.org * trend_Int3 / 40
-  )
+  ) #%>%
+  #select(-starts_with("prop"), -starts_with("trend"))
 
 output_path <- "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/transects_with_trend_.shp"
-st_write(length_results, output_path, delete_layer = TRUE)
+st_write(rate_results, output_path, delete_layer = TRUE)
+
+
+# get the min and max of your variable
+min_val <- min(rate_results$length_change_Int2, na.rm = TRUE)
+max_val <- max(rate_results$length_change_Int2, na.rm = TRUE)
+
+p <- ggplot(rate_results) +
+  geom_sf(aes(color = length_change_Int2), size = 1) +
+  scale_color_gradient2(
+    low = "darkgreen",
+    mid = "white",
+    high = "red",
+    midpoint = 0,
+    limits = c(min_val, max_val),
+    labels = scales::number_format(accuracy = 0.01)
+  ) +
+  theme(
+    panel.background = element_rect(fill = "black", color = NA),
+    plot.background = element_rect(fill = "black", color = NA),
+    panel.grid = element_blank(),
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    legend.background = element_rect(fill = "black"),
+    legend.key = element_rect(fill = "black"),
+    legend.text = element_text(color = "white"),
+    legend.title = element_text(color = "white"),
+    plot.title = element_text(color = "white")
+  ) +
+  labs(
+    color = "WZ rates (m/yr)",
+    title = "Transects by Length Change Int2"
+  )
+
+# save
+ggsave(
+  filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/length_change_Int2_plot_black.png",
+  plot = p,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+##### VZ plot ###
+# get min and max for length_change_Int1
+min_val1 <- min(rate_results$length_change_Int1, na.rm = TRUE)
+max_val1 <- max(rate_results$length_change_Int1, na.rm = TRUE)
+
+# create plot
+p1 <- ggplot(rate_results) +
+  geom_sf(aes(color = length_change_Int1), size = 1) +
+  scale_color_gradient2(
+    low = "green",       # negative values
+    mid = "white",       # zero
+    high = "#0072B2",    # vivid blue for positive
+    midpoint = 0,
+    limits = c(min_val1, max_val1),
+    labels = scales::number_format(accuracy = 0.01)
+  ) +
+  theme(
+    panel.background = element_rect(fill = "black", color = NA),
+    plot.background = element_rect(fill = "black", color = NA),
+    panel.grid = element_blank(),
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    legend.background = element_rect(fill = "black"),
+    legend.key = element_rect(fill = "black"),
+    legend.text = element_text(color = "white"),
+    legend.title = element_text(color = "white"),
+    plot.title = element_text(color = "white")
+  ) +
+  labs(
+    color = "WZ rates (m/yr)",
+    title = "Transects by Length Change Int1"
+  )
+
+# save plot
+ggsave(
+  filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_rates.tif",
+  plot = p1,
+  width = 10,
+  height = 8,
+  dpi = 300
+)
+
+
 
 ############################ Model the liklihood of change in Int1 and Int2 ######
 analyze_length_changes(length_results)

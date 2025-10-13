@@ -95,6 +95,95 @@ get_yearly_proportions <- function(transect_id, polygon, points, year_col) {
     prop_3 = sum(vals == 3) / total
   )
 }
+
+######################## Plot rates ####################################
+plot_rates <- function(rate_results,
+                       length_col = "length_change_Int2",  # column to use
+                       utm_crs = 32617,
+                       target_max_length = 180) {
+  # 1. Project to UTM
+  rates_proj <- st_transform(rate_results, utm_crs)
+  
+  # 2. Scale length based on chosen length column
+  col_sym <- sym(length_col)
+  max_rate <- max(pull(rates_proj, !!col_sym), na.rm = TRUE)
+  
+  rates_proj <- rates_proj %>%
+    mutate(scaled_length = (!!col_sym) * target_max_length)
+  
+  # 3. Function to rescale a linestring
+  rescale_line <- function(line_geom, new_length) {
+    coords <- st_coordinates(line_geom)
+    start_pt <- coords[1, 1:2]
+    end_pt <- coords[nrow(coords), 1:2]
+    direction <- end_pt - start_pt
+    current_length <- sqrt(sum(direction^2))
+    if (current_length == 0) return(line_geom)
+    scaled_vector <- direction * (new_length / current_length)
+    new_end <- start_pt + scaled_vector
+    st_sfc(st_linestring(rbind(start_pt, new_end)), crs = st_crs(line_geom))
+  }
+  
+  # 4. Rescale all lines
+  rates_proj <- rates_proj %>%
+    rowwise() %>%
+    mutate(new_geom = rescale_line(x, scaled_length)) %>%
+    ungroup() %>%
+    st_set_geometry("new_geom")
+  
+  # 5. Compute reference points for connecting line
+  rates_proj <- rates_proj %>%
+    rowwise() %>%
+    mutate(ref_point = {
+      coords <- st_coordinates(new_geom)
+      if (scaled_length >= 0) {
+        # Positive: leading point (start of line)
+        st_sfc(st_point(coords[1, 1:2]), crs = st_crs(new_geom))
+      } else {
+        # Negative: leading point (start of line)
+        st_sfc(st_point(coords[1, 1:2]), crs = st_crs(new_geom))
+      }
+    }) %>%
+    ungroup()
+  
+  # 6. Create connection line
+  ref_coords <- st_coordinates(rates_proj$ref_point)
+  connection_line <- st_sfc(st_linestring(ref_coords), crs = st_crs(rates_proj))
+  
+  # Return a list: rescaled transects + connecting line
+  return(list(
+    transects = rates_proj,
+    connection_line = st_sf(geometry = connection_line)
+  ))
+}
+
+################### Simulate transects for study design figure ###########
+
+###################### Plot transects ######################################
+plot_and_save_transects <- function(results, connection_line, subset_transects_utm, filename = "transects_plot.tif", width = 6, height = 6, dpi = 300) {
+  # Expecting results as a list: list(transects = sf, connection_line = sf)
+  
+  p <- ggplot() +
+    geom_sf(data = results$x, color = "gray", size = 0.8) +
+    geom_sf(data = connection_line, color = "black", size = 1) +
+    geom_sf(data = subset_transects_utm, color = "blue", linewidth = 2, linetype = "dashed") +
+    ggtitle("Rescaled Transects with Connection Line") +
+    theme_minimal() +
+    theme(
+      axis.text = element_blank(),
+      axis.title = element_blank(),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      panel.background = element_rect(fill = "white", color = NA),
+      plot.background = element_rect(fill = "white", color = NA)
+    )
+  
+  # Save as .tif
+  ggsave(filename, plot = p, device = "tiff", width = width, height = height, dpi = dpi, bg = "white")
+  
+  message("Saved plot to: ", filename)
+}
+
 ###################### obtaining the interior points for the time series #####
 # Define main function
 extract_northernmost_points <- function(buffer_sf, points_sf, year_cols) {
@@ -312,7 +401,7 @@ plot_trend_layers <- function(selected_layers, years = c(1984, 2004, 2024), outp
   par(mar = c(1, 1, 2, 1), family = "Times")
 
   # Colors and breaks
-  cols <- c("#2b83ba", "#d7191c", "#ffffbf")
+  cols <- c("#00441b", "#b08b5b", "#a1d996")
   brks <- c(0.5, 1.5, 2.5, 3.5)
 
   # Plot each subplot
@@ -339,6 +428,7 @@ plot_trend_layers <- function(selected_layers, years = c(1984, 2004, 2024), outp
 
   dev.off()
 }
+
 #### Intersection presence
 save_transect_presence_plot <- function(output_path, intersection_data) {
   # Create the plot
@@ -727,7 +817,131 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
   df_long$Class <- gsub("_area_km2", "", df_long$Class)
   df_long$LineType <- ifelse(df_long$Year > 2024, "Projected", "Observed")
   
-  cols <- c("VZ" = "#2b83ba", "WZ" = "#d7191c", "TZ" = "#ffffbf")
+  cols <- c("VZ" = "#00441b", "WZ" = "#b08b5b", "TZ" = "#a1d996")
+  
+  p <- ggplot(df_long, aes(x = Year, y = Area_km2, color = Class, linetype = LineType)) +
+    geom_line(size = 1.2) +
+    geom_point(data = subset(df_long, LineType == "Observed"), size = 3) +
+    scale_color_manual(values = cols) +
+    scale_linetype_manual(values = c("Observed" = "solid", "Projected" = "dashed"), guide = "none") +
+    scale_x_continuous(
+      breaks = seq(1984, 2024, by = 10), 
+      limits = c(1984, 2024)
+    ) +
+    labs(
+      title = "Predictions of Land Cover Area",
+      x = "Year",
+      y = "Area (km²)",
+      color = "Class"
+    ) +
+    theme_minimal(base_size = 18, base_family = "Times New Roman") +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold", color = "black", size = 24),
+      axis.title = element_text(color = "black", size = 20),
+      axis.text = element_text(color = "black", size = 18),
+      legend.title = element_text(color = "black", size = 18),
+      legend.text = element_text(color = "black", size = 16),
+      panel.background = element_rect(fill = "white", color = NA),
+      plot.background = element_rect(fill = "white", color = NA),
+      legend.background = element_rect(fill = "white"),
+      legend.key = element_rect(fill = "white")
+    )
+  
+  ggsave(output_path, plot = p, width = 8, height = 6, dpi = 300, device = "tiff")
+  
+  print(paste("Plot saved to:", output_path))
+  
+  # Print change rates
+  get_rate <- function(start_year, end_year, df, col) {
+    s <- df[df$Year == start_year, col]
+    e <- df[df$Year == end_year, col]
+    rate <- (e - s) / (end_year - start_year)
+    return(rate)
+  }
+  
+  cat("VZ Change Rate (km²/year):\n")
+  cat("1984–2021:", round(get_rate(1984, 2021, time_series_df, "WZ_area_km2"), 2), "\n")
+  cat("2000–2021:", round(get_rate(2000, 2021, time_series_df, "WZ_area_km2"), 2), "\n")
+  cat("2010–2021:", round(get_rate(2010, 2021, time_series_df, "WZ_area_km2"), 2), "\n")
+  cat("2014–2024:", round(get_rate(2014, 2024, time_series_df, "WZ_area_km2"), 2), "\n")
+  
+  cat("1984–2021:", round(get_rate(1984, 2021, time_series_df, "WZ_area_km2"), 2), "\n")
+  cat("2000–2021:", round(get_rate(2000, 2021, time_series_df, "WZ_area_km2"), 2), "\n")
+  cat("2013–2022:", round(get_rate(2013, 2022, time_series_df, "WZ_area_km2"), 2), "\n")
+}
+###################### Extended plot ################################################
+# BAU
+# Class 1 (VZ): Rate: 0.37 pixels/year)
+# Class 2 (WZ):  Rate: 0.33 pixels/year)
+# Class 3 (TZ): Rate: -0.70 pixels/year)
+
+### pessimistic: Class 1 (VZ): Rate: 0.16 pixels/year)
+### Class 2 (WZ): Rate: 0.50 pixels/year)
+### Class 3 (TZ): Rate: -0.65 pixels/year)
+
+## Optimistic
+# Class 1 (VZ): Rate: 0.76 pixels/year)
+# Class 2 (WZ): Rate: 0.06 pixels/year)
+# Class 3 (TZ): Rate: -0.82 pixels/year)
+
+
+plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_years = NULL) {
+  raster_files <- list.files(path = raster_folder_path, pattern = "\\.tif$", full.names = TRUE)
+  raster_stack <- rast(raster_files)
+  
+  count_classes <- function(r) {
+    values <- as.vector(r)
+    table(factor(values, levels = c(1, 2, 3)))
+  }
+  
+  class_counts <- sapply(1:nlyr(raster_stack), function(i) count_classes(raster_stack[[i]]))
+  
+  time_series_df <- data.frame(
+    Time = seq_along(raster_files),
+    VZ = class_counts[1, ],
+    WZ = class_counts[2, ],
+    TZ = class_counts[3, ]
+  )
+  
+  time_series_df$WZ_area_km2 <- time_series_df$WZ * 30 * 30 / 1e6
+  time_series_df$VZ_area_km2 <- time_series_df$VZ * 30 * 30 / 1e6
+  time_series_df$TZ_area_km2 <- time_series_df$TZ * 30 * 30 / 1e6
+  time_series_df$Year <- 1984:(1983 + length(raster_files))
+  
+  # Project future years if needed
+  if (!is.null(extend_years)) {
+    extend_to <- max(extend_years)
+    last_observed_year <- max(time_series_df$Year[time_series_df$Year <= 2024])
+    last_values <- time_series_df[time_series_df$Year == last_observed_year, ]
+    
+    # Annual change rates (km²)
+    
+    vz_rate <- 0.4922
+    wz_rate <- 0.4589
+    tz_rate <- -0.9511 ## annual rate of the predicted 25 and 50 yrs scenarios
+    
+    for (y in (last_observed_year + 1):extend_to) {
+      prev_row <- tail(time_series_df, 1)
+      new_row <- data.frame(
+        Time = max(time_series_df$Time) + 1,
+        VZ = NA, WZ = NA, TZ = NA,
+        WZ_area_km2 = prev_row$WZ_area_km2 + wz_rate,
+        VZ_area_km2 = prev_row$VZ_area_km2 + vz_rate,
+        TZ_area_km2 = prev_row$TZ_area_km2 + tz_rate,
+        Year = y
+      )
+      time_series_df <- rbind(time_series_df, new_row)
+    }
+  }
+  
+  # Reshape for plotting
+  df_long <- melt(time_series_df[, c("Year", "WZ_area_km2", "VZ_area_km2", "TZ_area_km2")],
+                  id.vars = "Year",
+                  variable.name = "Class", value.name = "Area_km2")
+  df_long$Class <- gsub("_area_km2", "", df_long$Class)
+  df_long$LineType <- ifelse(df_long$Year > 2024, "Projected", "Observed")
+  
+  cols <- c("VZ" = "#00441b", "WZ" = "#b08b5b", "TZ" = "#a1d996")
   
   p <- ggplot(df_long, aes(x = Year, y = Area_km2, color = Class, linetype = LineType)) +
     geom_line(size = 1.2) +
@@ -743,15 +957,15 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
     ) +
     theme_minimal(base_size = 18, base_family = "Times New Roman") +
     theme(
-      plot.title = element_text(hjust = 0.5, face = "bold", color = "white", size = 24),
-      axis.title = element_text(color = "white", size = 20),
-      axis.text = element_text(color = "white", size = 18),
-      legend.title = element_text(color = "white", size = 18),
-      legend.text = element_text(color = "white", size = 16),
-      panel.background = element_rect(fill = "black", color = "black"),
-      plot.background = element_rect(fill = "black", color = "black"),
-      legend.background = element_rect(fill = "black"),
-      legend.key = element_rect(fill = "black")
+      plot.title = element_text(hjust = 0.5, face = "bold", color = "black", size = 24),
+      axis.title = element_text(color = "black", size = 20),
+      axis.text = element_text(color = "black", size = 18),
+      legend.title = element_text(color = "black", size = 18),
+      legend.text = element_text(color = "black", size = 16),
+      panel.background = element_rect(fill = "white", color = "white"),
+      plot.background = element_rect(fill = "white", color = "white"),
+      legend.background = element_rect(fill = "white"),
+      legend.key = element_rect(fill = "white")
     )
   
   ggsave(output_path, plot = p, width = 8, height = 6, dpi = 300, device = "tiff")
@@ -770,6 +984,212 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
   cat("1984–2021:", round(get_rate(1984, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
   cat("2000–2021:", round(get_rate(2000, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
   cat("2010–2021:", round(get_rate(2010, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
+}
+
+plot_land_cover_time_series_extend <- function(raster_folder_path, output_prefix, extend_years = NULL) {
+
+  raster_files <- list.files(path = raster_folder_path, pattern = "\\.tif$", full.names = TRUE)
+  raster_stack <- rast(raster_files)
+  
+  count_classes <- function(r) {
+    values <- as.vector(r)
+    table(factor(values, levels = c(1, 2, 3)))
+  }
+  
+  class_counts <- sapply(1:nlyr(raster_stack), function(i) count_classes(raster_stack[[i]]))
+  
+  time_series_df <- data.frame(
+    Time = seq_along(raster_files),
+    VZ = class_counts[1, ],
+    WZ = class_counts[2, ],
+    TZ = class_counts[3, ]
+  )
+  
+  time_series_df$WZ_area_km2 <- time_series_df$WZ * 30 * 30 / 1e6
+  time_series_df$VZ_area_km2 <- time_series_df$VZ * 30 * 30 / 1e6
+  time_series_df$TZ_area_km2 <- time_series_df$TZ * 30 * 30 / 1e6
+  time_series_df$Year <- 1984:(1983 + length(raster_files))
+  
+  # Define scenarios with their rates
+  scenarios <- list(
+    BAU = list(vz_rate = 0.37, wz_rate = 0.33, tz_rate = -0.70),
+    Pessimistic = list(vz_rate = 0.16, wz_rate = 0.50, tz_rate = -0.65),
+    Optimistic = list(vz_rate = 0.76, wz_rate = 0.06, tz_rate = -0.82)
+  )
+  
+  # Loop through each scenario
+  for (sc in names(scenarios)) {
+    ts_df <- time_series_df
+    
+    if (!is.null(extend_years)) {
+      extend_to <- max(extend_years)
+      last_observed_year <- max(ts_df$Year[ts_df$Year <= 2024])
+      last_values <- ts_df[ts_df$Year == last_observed_year, ]
+      
+      vz_rate <- scenarios[[sc]]$vz_rate
+      wz_rate <- scenarios[[sc]]$wz_rate
+      tz_rate <- scenarios[[sc]]$tz_rate
+      
+      for (y in (last_observed_year + 1):extend_to) {
+        prev_row <- tail(ts_df, 1)
+        new_row <- data.frame(
+          Time = max(ts_df$Time) + 1,
+          VZ = NA, WZ = NA, TZ = NA,
+          WZ_area_km2 = prev_row$WZ_area_km2 + wz_rate,
+          VZ_area_km2 = prev_row$VZ_area_km2 + vz_rate,
+          TZ_area_km2 = prev_row$TZ_area_km2 + tz_rate,
+          Year = y
+        )
+        ts_df <- rbind(ts_df, new_row)
+      }
+    }
+    
+    # Reshape for plotting
+    df_long <- melt(ts_df[, c("Year", "WZ_area_km2", "VZ_area_km2", "TZ_area_km2")],
+                    id.vars = "Year",
+                    variable.name = "Class", value.name = "Area_km2")
+    df_long$Class <- gsub("_area_km2", "", df_long$Class)
+    df_long$LineType <- ifelse(df_long$Year > 2024, "Projected", "Observed")
+    
+    cols <- c("VZ" = "#00441b", "WZ" = "#b08b5b", "TZ" = "#a1d996")
+    
+    p <- ggplot(df_long, aes(x = Year, y = Area_km2, color = Class, linetype = LineType)) +
+      geom_line(size = 1.2) +
+      geom_point(data = subset(df_long, LineType == "Observed"), size = 3) +
+      scale_color_manual(values = cols) +
+      scale_linetype_manual(values = c("Observed" = "solid", "Projected" = "dashed"), guide = "none") +
+      labs(
+        x = "Year",
+        y = "Area (km²)",
+        color = "Class"
+      ) +
+      theme_minimal(base_size = 18, base_family = "Times New Roman") +
+      theme(
+        axis.title = element_text(color = "black", size = 20),
+        axis.text = element_text(color = "black", size = 18),
+        legend.title = element_text(color = "black", size = 18),
+        legend.text = element_text(color = "black", size = 16),
+        panel.background = element_rect(fill = "white", color = "white"),
+        plot.background = element_rect(fill = "white", color = "white"),
+        legend.background = element_rect(fill = "white"),
+        legend.key = element_rect(fill = "white")
+      )
+    
+    # Save output for this scenario
+    output_path <- paste0(output_prefix, "_", sc, ".tiff")
+    ggsave(output_path, plot = p, width = 8, height = 6, dpi = 300, device = "tiff")
+    
+    print(paste("Plot saved for", sc, "scenario at:", output_path))
+  }
+}
+################ Plot interior boundary shift ###################################
+plot_boundary_and_basemap <- function(shapefile_path, output_tif_path, transect_shapefile_path = NULL) {
+  # 1. Read shapefile
+  shp <- st_read(shapefile_path)
+  
+  # 2. Transform to Web Mercator
+  shp_3857 <- st_transform(shp, 3857)
+  
+  # 3. Create a class column for legend
+  shp_3857$Class <- ifelse(shp_3857$sgnd_d_ > 0, "Landward", "Seaward")
+  
+  # 4. Assign colors to classes
+  line_colors <- c("Landward" = "red", "Seaward" = "cyan")
+  
+  # 5. Get basemap
+  basemap <- get_tiles(shp_3857, provider = "Esri.WorldImagery", crop = TRUE)
+  
+  # 6. Base plot
+  p <- ggplot() +
+    layer_spatial(basemap) +
+    geom_sf(data = shp_3857, aes(color = Class), size = 2) +
+    scale_color_manual(values = line_colors) +
+    theme_void() +
+    theme(
+      legend.position = "right",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 12, family = "Times New Roman")
+    ) +
+    guides(color = guide_legend(override.aes = list(size = 3)))
+  
+  # 7. Overlay transects if provided
+  if (!is.null(transect_shapefile_path)) {
+    transects <- st_read(transect_shapefile_path)
+    transects_3857 <- st_transform(transects, 3857)
+    
+    p <- p +
+      geom_sf(
+        data = transects_3857,
+        color = "blue",       # or choose another color
+        size = 1,
+        linetype = "dashed"
+      )
+  }
+  
+  # 8. Display
+  print(p)
+  
+  # 9. Save to file with white background
+  ggsave(
+    output_tif_path,
+    plot = p,
+    width = 8,
+    height = 6,
+    dpi = 300,
+    bg = "white"
+  )
+  
+  message("Plot saved to: ", output_tif_path)
+  
+  # 10. Summary table
+  summary_df <- shp_3857 %>%
+    mutate(sgnd_div40 = sgnd_d_ / 40) %>%
+    mutate(range_group = case_when(
+      Plyg_ID < 37 ~ "<37",
+      Plyg_ID >= 37 & Plyg_ID <= 61 ~ "37-61",
+      Plyg_ID > 61 ~ ">61"
+    )) %>%
+    group_by(range_group) %>%
+    summarise(
+      mean_sgnd_div40 = mean(sgnd_div40, na.rm = TRUE),
+      median_sgnd_div40 = median(sgnd_div40, na.rm = TRUE),
+      count = n()
+    )
+  
+  print(summary_df)
+}
+
+#################### Report average rates for each subregion #####################
+calculate_length_change_averages <- function(df, value_col, custom_range = c(27, 37)) {
+  
+  # ensure ID is numeric
+  df <- df %>% mutate(ID = as.numeric(ID))
+  
+  # define main ID groups
+  df <- df %>%
+    mutate(ID_group = case_when(
+      ID >= 1 & ID <= 37   ~ "1-37",
+      ID >= 38 & ID <= 60  ~ "38-60",
+      ID >= 61 & ID <= 100 ~ "61-100",
+      TRUE ~ NA_character_
+    ))
+  
+  # calculate averages for main groups
+  avg_main <- df %>%
+    group_by(ID_group) %>%
+    summarise(avg_length_change = mean(.data[[value_col]], na.rm = TRUE)) %>%
+    ungroup()
+  
+  # calculate average for custom range
+  avg_custom <- df %>%
+    filter(ID >= custom_range[1] & ID <= custom_range[2]) %>%
+    summarise(ID_group = paste0(custom_range[1], "-", custom_range[2]),
+              avg_length_change = mean(.data[[value_col]], na.rm = TRUE))
+  
+  # combine results
+  result <- bind_rows(avg_main, avg_custom)
+  
+  return(result)
 }
 
 ################# Calculate the average rate for WZ (41 years) and VZ (11 years) ##
@@ -912,53 +1332,72 @@ export_combined_hydro <- function(db_summary, eden_summary, out_path) {
   
   message("Shapefile written to: ", out_path)
 }
-##### calculating correlations among sites ####
-compute_site_correlations <- function(all_annual_averages, summary_data_filtered, site_names) {
-  correlation_results <- lapply(site_names, function(site_name) {
-    # Extract annual_avg for the site
-    site_data <- all_annual_averages %>%
-      filter(site == site_name)
+##### calculating correlations among sites by region ####
+compute_site_correlations_by_region <- function(all_annual_averages,
+                                                summary_data,
+                                                west_sites,
+                                                central_sites,
+                                                east_sites,
+                                                proportion_col) {
+  
+  # Ensure summary_data is a tibble
+  summary_data <- as_tibble(summary_data)
+  
+  correlation_results <- lapply(1:100, function(ID_value) {
     
-    # Extract the proportion_Int2 values for the matching years
-    site_summary <- summary_data_filtered %>%
-      filter(time %in% site_data$year) %>%
-      select(ID, time, proportion_Int2)
+    # Determine region
+    if (ID_value > 61) {
+      region <- "west"
+      site_names <- west_sites
+    } else if (ID_value >= 37 && ID_value <= 61) {
+      region <- "central"
+      site_names <- central_sites
+    } else {
+      region <- "east"
+      site_names <- east_sites
+    }
     
-    # Merge the site data (annual_avg) with the transect data (proportion_Int2) by year
-    merged_data <- site_data %>%
-      inner_join(site_summary, by = c("year" = "time"))
+    # Year range
+    year_filter <- 1991:2024
     
-    # Initialize an empty list to store correlations for each transect
-    site_correlation <- lapply(1:100, function(ID_value) {
-      # Filter data for the given transect ID
-      transect_data <- merged_data %>%
-        filter(ID == ID_value)
-      
-      # Perform the correlation analysis for the current transect (ID)
-      if (nrow(transect_data) > 1) {
-        correlation_result <- cor(
-          transect_data$annual_avg,
-          transect_data$proportion_Int2,
-          use = "complete.obs"
-        )
-        return(data.frame(site = site_name, ID = ID_value, correlation = correlation_result))
-      } else {
-        return(NULL)  # Skip if there is insufficient data for correlation
-      }
-    })
+    # Regional mean
+    regional_mean <- all_annual_averages %>%
+      dplyr::filter(site %in% site_names, year %in% year_filter) %>%
+      dplyr::group_by(year) %>%
+      dplyr::summarise(mean_salinity = mean(annual_avg, na.rm = TRUE), .groups = "drop")
     
-    # Bind the list of correlations into a data frame for the site
-    site_correlation_df <- bind_rows(site_correlation)
-    return(site_correlation_df)
+    # Transect data
+    transect_data <- summary_data %>%
+      dplyr::filter(ID == ID_value, time %in% regional_mean$year) %>%
+      dplyr::select(ID, time, value = dplyr::all_of(proportion_col))
+    
+    # Merge and compute correlation
+    merged <- regional_mean %>%
+      dplyr::inner_join(transect_data, by = c("year" = "time"))
+    
+    if (nrow(merged) > 1) {
+      correlation_result <- cor(merged$mean_salinity,
+                                merged$value,
+                                use = "complete.obs")
+      return(data.frame(ID = ID_value,
+                        region = region,
+                        correlation = correlation_result))
+    } else {
+      return(NULL)
+    }
   })
   
-  # Combine all sites into one data frame
-  bind_rows(correlation_results)
+  dplyr::bind_rows(correlation_results)
 }
 
 ####### calcualte distance between sites and transects ####
 calculate_distance_join <- function(correlation_salinity_df, data, ENP_transects) {
   
+  correlation_salinity_df <- correlation_salinity_df %>%
+    mutate(ID = as.integer(ID))
+  
+  ENP_transects <- ENP_transects %>%
+    mutate(ID = as.integer(ID))
   # Step 1: Join lat/lon from data to correlation_salinity_df by Station_ID
   data_subset <- data %>% select(Station_ID, lat_decimal, lon_decimal)
   
@@ -966,6 +1405,13 @@ calculate_distance_join <- function(correlation_salinity_df, data, ENP_transects
     left_join(data_subset, by = "Station_ID")
   
   # Step 2: Join lat/lon from ENP_transects to correlation_salinity_df by ID
+  ENP_transects <- ENP_transects %>%
+    st_centroid() %>%
+    mutate(
+      lon = st_coordinates(.)[,1],
+      lat = st_coordinates(.)[,2]
+    )
+  
   ENP_subset <- ENP_transects %>% select(ID, lat, lon)
   
   correlation_salinity_df <- correlation_salinity_df %>%
@@ -1062,7 +1508,7 @@ plot_correlation_map <- function(data, point_of_interest, ENP_transects, station
 }
 
 #### calculate dbhydro wl correlations among sites and transects ##
-compute_dbhydro_correlations <- function(all_site_names, dbhydro, summary_data) {
+compute_dbhydro_correlations <- function(all_site_names, wl, summary_data) {
   total_sites <- length(all_site_names)
   
   correlation_results_dbh <- lapply(seq_along(all_site_names), function(i) {
@@ -1072,7 +1518,7 @@ compute_dbhydro_correlations <- function(all_site_names, dbhydro, summary_data) 
     cat(sprintf("Progress: %d%% (%s)\n", round(100 * i / total_sites), site_name))
     
     # Extract mean_value for the site from dbhydro
-    site_data <- dbhydro %>%
+    site_data <- wl %>%
       filter(source_file == site_name) %>%
       distinct(year, .keep_all = TRUE)  # Keep only one row per year
     
