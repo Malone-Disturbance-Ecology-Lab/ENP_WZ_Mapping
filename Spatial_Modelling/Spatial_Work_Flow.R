@@ -716,8 +716,7 @@ rate_results <- transects_in_polygon %>%
     length_change_Int1 = length.org * trend_Int1 / 40,
     length_change_Int2 = length.org * trend_Int2 / 40,
     length_change_Int3 = length.org * trend_Int3 / 40
-  ) #%>%
-  #select(-starts_with("prop"), -starts_with("trend"))
+  )
 
 output_path <- "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/transects_with_trend_.shp"
 st_write(rate_results, output_path, delete_layer = TRUE)

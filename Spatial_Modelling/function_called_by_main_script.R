@@ -157,7 +157,6 @@ plot_rates <- function(rate_results,
   ))
 }
 
-################### Simulate transects for study design figure ###########
 
 ###################### Plot transects ######################################
 plot_and_save_transects <- function(results, connection_line, subset_transects_utm, filename = "transects_plot.tif", width = 6, height = 6, dpi = 300) {
@@ -860,14 +859,53 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
   }
   
   cat("VZ Change Rate (km²/year):\n")
-  cat("1984–2021:", round(get_rate(1984, 2021, time_series_df, "WZ_area_km2"), 2), "\n")
-  cat("2000–2021:", round(get_rate(2000, 2021, time_series_df, "WZ_area_km2"), 2), "\n")
-  cat("2010–2021:", round(get_rate(2010, 2021, time_series_df, "WZ_area_km2"), 2), "\n")
-  cat("2014–2024:", round(get_rate(2014, 2024, time_series_df, "WZ_area_km2"), 2), "\n")
+  cat("1984–2021:", round(get_rate(1984, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
+  cat("2000–2021:", round(get_rate(2000, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
+  cat("2010–2021:", round(get_rate(2010, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
+  cat("2014–2024:", round(get_rate(2014, 2024, time_series_df, "VZ_area_km2"), 2), "\n")
+
+  # ---- Calculate total area by year ----
+  time_series_df$Total_area_km2 <- time_series_df$VZ_area_km2 + 
+    time_series_df$WZ_area_km2 + 
+    time_series_df$TZ_area_km2
   
-  cat("1984–2021:", round(get_rate(1984, 2021, time_series_df, "WZ_area_km2"), 2), "\n")
-  cat("2000–2021:", round(get_rate(2000, 2021, time_series_df, "WZ_area_km2"), 2), "\n")
-  cat("2013–2022:", round(get_rate(2013, 2022, time_series_df, "WZ_area_km2"), 2), "\n")
+  cat("\nTotal Land Cover Area (km²) by Year:\n")
+  print(time_series_df[, c("Year", "Total_area_km2")])
+  
+  # Example: print total area for a specific year (e.g., 2024)
+  target_year <- 2022
+  total_area_target <- time_series_df$Total_area_km2[time_series_df$Year == target_year]
+  cat(paste("\nTotal area in", target_year, ":", round(total_area_target, 2), "km²\n"))
+
+  # ---- Calculate total change in area for each class ----
+  calculate_change <- function(df, start_year, end_year) {
+    start_row <- df[df$Year == start_year, ]
+    end_row <- df[df$Year == end_year, ]
+
+    change_VZ <- end_row$VZ_area_km2 - start_row$VZ_area_km2
+    change_WZ <- end_row$WZ_area_km2 - start_row$WZ_area_km2
+    change_TZ <- end_row$TZ_area_km2 - start_row$TZ_area_km2
+
+    cat("\nChange in area (km²) from", start_year, "to", end_year, ":\n")
+    cat("VZ:", round(change_VZ, 2), "km²\n")
+    cat("WZ:", round(change_WZ, 2), "km²\n")
+    cat("TZ:", round(change_TZ, 2), "km²\n")
+  }
+
+  # Example usage: change from first to last observed year
+  observed_start <- 2014
+  observed_end <- 2024
+
+  calculate_change(time_series_df, observed_start, observed_end)
+  
+  # ---- Print 2024 class areas ----
+  target_year <- 2024
+  year_row <- time_series_df[time_series_df$Year == target_year, ]
+  
+  cat("\nLand Cover Areas in", target_year, ":\n")
+  cat("VZ:", round(year_row$VZ_area_km2, 2), "km²\n")
+  cat("WZ:", round(year_row$WZ_area_km2, 2), "km²\n")
+  cat("TZ:", round(year_row$TZ_area_km2, 2), "km²\n")
 }
 ###################### Extended plot ################################################
 # BAU
@@ -984,6 +1022,19 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
   cat("1984–2021:", round(get_rate(1984, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
   cat("2000–2021:", round(get_rate(2000, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
   cat("2010–2021:", round(get_rate(2010, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
+  # --- Print coverage for first year (1984) and last observed year (2024) ---
+  first <- time_series_df[time_series_df$Year == 2013, ]
+  last  <- time_series_df[time_series_df$Year == 2024, ]
+  
+  cat("\nLand-cover area summary (km²):\n")
+  cat("Year 1984 →  VZ:", round(first$VZ_area_km2, 2),
+      " | WZ:", round(first$WZ_area_km2, 2),
+      " | TZ:", round(first$TZ_area_km2, 2), "\n")
+  
+  cat("Year 2024 →  VZ:", round(last$VZ_area_km2, 2),
+      " | WZ:", round(last$WZ_area_km2, 2),
+      " | TZ:", round(last$TZ_area_km2, 2), "\n")
+  
 }
 
 plot_land_cover_time_series_extend <- function(raster_folder_path, output_prefix, extend_years = NULL) {
@@ -1080,7 +1131,14 @@ plot_land_cover_time_series_extend <- function(raster_folder_path, output_prefix
     ggsave(output_path, plot = p, width = 8, height = 6, dpi = 300, device = "tiff")
     
     print(paste("Plot saved for", sc, "scenario at:", output_path))
+    
+    # ---- Print final VZ area ----
+    final_year <- max(ts_df$Year)
+    final_vz_area <- ts_df$TZ_area_km2[ts_df$Year == final_year]
+    cat(paste0("Scenario: ", sc, " | Final TZ area (km²) in ", final_year, ": ", round(final_vz_area, 3), "\n"))
   }
+  
+  
 }
 ################ Plot interior boundary shift ###################################
 plot_boundary_and_basemap <- function(shapefile_path, output_tif_path, transect_shapefile_path = NULL) {

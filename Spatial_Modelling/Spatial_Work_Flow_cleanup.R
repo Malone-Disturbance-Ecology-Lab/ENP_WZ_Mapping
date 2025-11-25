@@ -85,12 +85,13 @@ ENP.transects <- ENP.transects %>%
   dplyr::select(-centroid)  # remove if centroid is not needed
 
 ### Section 2.2 - plot time series of land cover change ###
-plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE", 
+plot_land_cover_time_series("/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE/Subregion_new/Region_0", 
                             "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_test.tif")
 
 ## Need to move this part - this belongs to projection #######
 plot_land_cover_time_series_extend(
   raster_folder_path = "/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE",
+  #raster_folder_path = "/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE/Subregion_new/Region_2",
   output_prefix = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_extended.tif",
   extend_years = c(2049, 2074)
 )
@@ -147,6 +148,16 @@ temp <- summary_data_df %>%
     trend_Int3 = last(proportion_Int3) - first(proportion_Int3),
     .groups = "drop"
   )
+  # summarise(
+  #   prop_Int1_2014 = proportion_Int1[time == 2014],
+  #   prop_Int2_2014 = proportion_Int2[time == 2014],
+  #   prop_Int3_2014 = proportion_Int3[time == 2014],
+  #   trend_Int1 = last(proportion_Int1) - proportion_Int1[time == 2014],
+  #   trend_Int2 = last(proportion_Int2) - proportion_Int2[time == 2014],
+  #   trend_Int3 = last(proportion_Int3) - proportion_Int3[time == 2014],
+  #   .groups = "drop"
+  # )
+
 
 # Join the two data frames by ID
 rate_results <- transects_in_polygon %>%
@@ -167,20 +178,20 @@ rescaled_transects <- result$transects
 connection_line <- result$connection_line
 
 ### Simulation ####
-set.seed(123)  # for reproducibility
-rate_results <- rate_results %>%
-  mutate(
-    simulation = ifelse(
-      ID < 61,
-      rnorm(n(), mean = 40, sd = 12),   # positive
-      rnorm(n(), mean = -30, sd = 10)    # negative
-    )
-  )
-result <- plot_rates(rate_results, length_col = "simulation")
-rescaled_simulation <- result$transects
-# Add a random value to each transect (0–1) to map color
-rescaled_simulation <- rescaled_simulation %>%
-  mutate(rand_color = runif(n()))
+# set.seed(123)  # for reproducibility
+# rate_results <- rate_results %>%
+#   mutate(
+#     simulation = ifelse(
+#       ID < 61,
+#       rnorm(n(), mean = 40, sd = 12),   # positive
+#       rnorm(n(), mean = -30, sd = 10)    # negative
+#     )
+#   )
+# result <- plot_rates(rate_results, length_col = "simulation")
+# rescaled_simulation <- result$transects
+# # Add a random value to each transect (0–1) to map color
+# rescaled_simulation <- rescaled_simulation %>%
+#   mutate(rand_color = runif(n()))
 ###################
 
 result_vz <- plot_rates(rate_results, length_col = "length_change_Int1")
@@ -218,51 +229,51 @@ p <- ggplot() +
   )
 
 ################# Generate a new simulation for the VZ #############
-set.seed(123)  # for reproducibility
-rate_results <- rate_results %>%
-  mutate(
-    simulation = ifelse(
-      ID < 61,
-      rnorm(n(), mean = -30, sd = 15),   # positive
-      rnorm(n(), mean = 40, sd = 18)    # negative
-    )
-  )
-result <- plot_rates(rate_results, length_col = "simulation")
-rescaled_simulation <- result$transects
-# Add a random value to each transect (0–1) to map color
-rescaled_simulation <- rescaled_simulation %>%
-  mutate(rand_color = runif(n()))
+# set.seed(123)  # for reproducibility
+# rate_results <- rate_results %>%
+#   mutate(
+#     simulation = ifelse(
+#       ID < 61,
+#       rnorm(n(), mean = -30, sd = 15),   # positive
+#       rnorm(n(), mean = 40, sd = 18)    # negative
+#     )
+#   )
+# result <- plot_rates(rate_results, length_col = "simulation")
+# rescaled_simulation <- result$transects
+# # Add a random value to each transect (0–1) to map color
+# rescaled_simulation <- rescaled_simulation %>%
+#   mutate(rand_color = runif(n()))
 
-p <- ggplot() +
-  geom_sf(data = rescaled_simulation, aes(color = ID), size = 0.8) +
-  geom_sf(data = connection_line, color = "black", size = 1) +
-  ggtitle("Rescaled Transects with Connection Line") +
-  scale_color_gradient(
-    low = "#00441b",    # deep/dark
-    high = "#a1d996",   # light
-    limits = c(1, 100), # map IDs 1–100 to the gradient
-    breaks = c(20, 57.5, 87.5), # midpoint for visual reference
-    labels = c("<40", "40-75", ">75"),
-    na.value = "gray"
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text = element_blank(),
-    axis.title = element_blank(),
-    axis.ticks = element_blank(),
-    panel.grid = element_blank(),
-    panel.background = element_rect(fill = "white", color = NA),
-    plot.background = element_rect(fill = "white", color = NA)
-  )
-# Save as TIFF
-ggsave(
-  filename = output_path,
-  plot = p,
-  device = "tiff",
-  width = 6,      # in inches
-  height = 6,     # in inches
-  dpi = 300       # resolution
-)
+# p <- ggplot() +
+#   geom_sf(data = rescaled_simulation, aes(color = ID), size = 0.8) +
+#   geom_sf(data = connection_line, color = "black", size = 1) +
+#   ggtitle("Rescaled Transects with Connection Line") +
+#   scale_color_gradient(
+#     low = "#00441b",    # deep/dark
+#     high = "#a1d996",   # light
+#     limits = c(1, 100), # map IDs 1–100 to the gradient
+#     breaks = c(20, 57.5, 87.5), # midpoint for visual reference
+#     labels = c("<40", "40-75", ">75"),
+#     na.value = "gray"
+#   ) +
+#   theme_minimal() +
+#   theme(
+#     axis.text = element_blank(),
+#     axis.title = element_blank(),
+#     axis.ticks = element_blank(),
+#     panel.grid = element_blank(),
+#     panel.background = element_rect(fill = "white", color = NA),
+#     plot.background = element_rect(fill = "white", color = NA)
+#   )
+# # Save as TIFF
+# ggsave(
+#   filename = output_path,
+#   plot = p,
+#   device = "tiff",
+#   width = 6,      # in inches
+#   height = 6,     # in inches
+#   dpi = 300       # resolution
+# )
 
 
 #### 4.3 regional rates for DZ and VZ ######
@@ -409,11 +420,11 @@ rescaled_transects_colored <- rescaled_transects %>%
   left_join(correlation_salinity_dz, by = "ID")
 
 # Extract coordinates
-rescaled_coords <- st_coordinates(rescaled_transects_colored) %>%
+rescaled_coords_dz <- st_coordinates(rescaled_transects_colored) %>%
   as.data.frame()
 
 # Now bind attributes back from the sf object
-rescaled_coords <- rescaled_coords %>%
+rescaled_coords_dz <- rescaled_coords_dz %>%
   dplyr::mutate(row_id = L1) %>%   # match rows to features
   dplyr::left_join(
     rescaled_transects_colored %>% 
@@ -422,8 +433,8 @@ rescaled_coords <- rescaled_coords %>%
     by = "row_id"
   )
 
-transect_plot <- ggplot() +
-  geom_path(data = rescaled_coords, aes(X, Y, group = ID, color = correlation), size = 3) +
+transect_plot_dz <- ggplot() +
+  geom_path(data = rescaled_coords_dz, aes(X, Y, group = ID, color = correlation), size = 3) +
   geom_sf(data = connection_line, color = "black", size = 2) +
   geom_sf(data = subset_transects_utm, color = "blue", linewidth = 2, linetype = "dashed") +
   scale_color_gradient(low = "#f7f1e0", high = "#7f3f00", na.value = "gray") +
@@ -433,12 +444,16 @@ transect_plot <- ggplot() +
     panel.grid = element_blank(),
     axis.text = element_blank(),
     axis.title = element_blank(),
-    axis.ticks = element_blank()
+    axis.ticks = element_blank(),
+    legend.title = element_text(size = 18, family = "Times"),
+    legend.text = element_text(size = 18, family = "Times"),
+    legend.key.height = unit(1.2, "cm"),  # make legend taller (optional)
+    legend.key.width = unit(0.5, "cm")    # adjust width (optional)
   )
 
 ggsave(
   filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/rescaled_dz_plot.tif",
-  plot = transect_plot,   # use the named plot object
+  plot = transect_plot_dz,   # use the named plot object
   device = "tiff",
   width = 10,
   height = 8,
@@ -448,15 +463,25 @@ ggsave(
 
 #### 6.6 Plot VZ correlation with salinity based on rates ######
 # Join correlation to the transects
+
+correlation_salinity_vz <- compute_site_correlations_by_region(
+  all_annual_averages = salinity_data,
+  summary_data = summary_data,
+  west_sites = west,
+  central_sites = central,
+  east_sites = east,
+  proportion_col = "proportion_Int1"  # STRING
+)
+
 rescaled_vz_colored <- rescaled_vz %>%
   left_join(correlation_salinity_vz, by = "ID")
 
 # Extract coordinates
-rescaled_coords <- st_coordinates(rescaled_vz_colored) %>%
+rescaled_coords_vz <- st_coordinates(rescaled_vz_colored) %>%
   as.data.frame()
 
 # Now bind attributes back from the sf object
-rescaled_coords <- rescaled_coords %>%
+rescaled_coords_vz <- rescaled_coords_vz %>%
   dplyr::mutate(row_id = L1) %>%   # match rows to features
   dplyr::left_join(
     rescaled_vz_colored %>% 
@@ -465,8 +490,8 @@ rescaled_coords <- rescaled_coords %>%
     by = "row_id"
   )
 
-transect_plot <- ggplot() +
-  geom_path(data = rescaled_coords, aes(X, Y, group = ID, color = correlation), size = 3) +
+transect_plot_vz <- ggplot() +
+  geom_path(data = rescaled_coords_vz, aes(X, Y, group = ID, color = correlation), size = 3) +
   geom_sf(data = connection_line, color = "black", size = 2) +
   geom_sf(data = subset_transects_utm, color = "blue", linewidth = 2, linetype = "dashed") +
   scale_color_gradient(low = "#33a354",high = "#00441b", na.value = "gray") +
@@ -476,21 +501,27 @@ transect_plot <- ggplot() +
     panel.grid = element_blank(),
     axis.text = element_blank(),
     axis.title = element_blank(),
-    axis.ticks = element_blank()
+    axis.ticks = element_blank(),
+    legend.title = element_text(size = 18, family = "Times"),
+    legend.text = element_text(size = 18, family = "Times"),
+    legend.key.height = unit(1.2, "cm"),  # make legend taller (optional)
+    legend.key.width = unit(0.5, "cm")    # adjust width (optional)
   )
 
 ggsave(
   filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/rescaled_vz_plot_.tif",
-  plot = transect_plot,   # use the named plot object
+  plot = transect_plot_vz,   # use the named plot object
   device = "tiff",
   width = 10,
   height = 8,
   dpi = 300,
   bg = "white"            # ensures white background
 )
+
+
 ########## Statistical test on subregional differences of correlation ######
 # 1. Remove rows with duplicated IDs (remove the first occurrence)
-rescaled_coords_clean <- rescaled_coords %>%
+rescaled_coords_clean <- rescaled_coords_vz %>%
   group_by(ID) %>%
   mutate(row_number = row_number()) %>%
   filter(row_number != 1) %>%  # remove the first row for each ID
