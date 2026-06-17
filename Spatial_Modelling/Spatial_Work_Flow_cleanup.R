@@ -65,6 +65,7 @@ rast.files <- list.files(
 ### Section 2 - Read in raster stack and transects and make plots ####
 ### Section 2.1 - read in raster stack ###
 setwd( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE')
+
 coast <- rast(rast.files) %>%
   terra::project("+proj=longlat +datum=WGS84", method = "near") ## "near to make sure class value is not interpolated "
 terra::time(coast) <-  substr(rast.files, 8, 11) %>% as.numeric # get the time out of the list of file names
@@ -85,8 +86,8 @@ ENP.transects <- ENP.transects %>%
   dplyr::select(-centroid)  # remove if centroid is not needed
 
 ### Section 2.2 - plot time series of land cover change ###
-plot_land_cover_time_series("/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE/Subregion_new/Region_0", 
-                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_test.tif")
+plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE/Subregion_new/Region_2", 
+                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_eastern.tif")
 
 ## Need to move this part - this belongs to projection #######
 plot_land_cover_time_series_extend(
@@ -333,11 +334,26 @@ line_sf_s$annual_rate_m <- line_sf_s$signed_distance_m / 40
 
 ###################### Section 6 - processing salinity data ###########
 ### Section 6.1 read in the salinity data
-salinity_data <- read.csv("/Volumes/MaloneLab/Research/Whitezone/Hydro_Salinity/Salinity/salinity_annual_avg.csv")
-all_site_names <- salinity_data$site
-all_site_names <- all_site_names[!grepl("^S197", all_site_names) & 
-                                   !grepl("^C", all_site_names) & 
-                                   !all_site_names %in% c("BISCA2_salinity", "BISCA4_salinity", "FLAB14_salinity", "FLAB16_salinity")]
+salinity_data <- read.csv("/Volumes/MaloneLab/Research/Whitezone/Hydro_Salinity/Salinity/salinity_annual_avg_full.csv")
+selected_sites <- c(
+  "FLAB12_salinity",
+  "FLAB11_salinity",
+  "FLAB10_salinity",
+  "ENPTR_salinity",
+  "ENPLM_salinity",
+  "ENPTC_salinity",
+  "FLAB08_salinity",
+  "FLAB07_salinity",
+  "ENPDK_salinity",
+  "ENPBS_salinity",
+  "ENPLB_salinity",
+  "ENPLS_salinity",
+  "ENPHC_salinity",
+  "FLAB04_salinity"
+)
+
+all_site_names <- salinity_data$site[salinity_data$site %in% selected_sites]
+
 # Section 6.2: Filter summary_data_df for the years that match ###
 matching_years <- salinity_data$year  ## 1991 onwards 
 
@@ -348,14 +364,22 @@ summary_data$time <- as.double(summary_data$time)
 
 #### 6.3 Assign the sites to a region (west, central, and east) ##
 west <- c(
-  "FLAB12_salinity", 
-  "FLAB11_salinity", 
-  "FLAB10_salinity"
+  "FLAB12_salinity",
+  "FLAB11_salinity",
+  "FLAB10_salinity",
+  "ENPTR_salinity",
+  "ENPLM_salinity",
+  "ENPTC_salinity"
 )
 
 central <- c(
-  "FLAB08_salinity", 
-  "FLAB07_salinity"
+  "FLAB08_salinity",
+  "FLAB07_salinity",
+  "ENPDK_salinity",
+  "ENPBS_salinity",
+  "ENPLB_salinity",
+  "ENPLS_salinity",
+  "ENPHC_salinity"
 )
 
 east <- c(
@@ -437,7 +461,14 @@ transect_plot_dz <- ggplot() +
   geom_path(data = rescaled_coords_dz, aes(X, Y, group = ID, color = correlation), size = 3) +
   geom_sf(data = connection_line, color = "black", size = 2) +
   geom_sf(data = subset_transects_utm, color = "blue", linewidth = 2, linetype = "dashed") +
-  scale_color_gradient(low = "#f7f1e0", high = "#7f3f00", na.value = "gray") +
+  scale_color_gradientn(
+    colors = c("#33a354", "#d9d9d9", "#7f3f00"),  # purple → neutral → brown
+    values = rescale(c(min(rescaled_coords_dz$correlation, na.rm = TRUE),
+                       0,
+                       max(rescaled_coords_dz$correlation, na.rm = TRUE))),
+    na.value = "gray",
+    name = "Correlation"
+  ) +
   coord_sf(datum = NA) +
   theme_minimal() +
   theme(
@@ -447,9 +478,17 @@ transect_plot_dz <- ggplot() +
     axis.ticks = element_blank(),
     legend.title = element_text(size = 18, family = "Times"),
     legend.text = element_text(size = 18, family = "Times"),
-    legend.key.height = unit(1.2, "cm"),  # make legend taller (optional)
-    legend.key.width = unit(0.5, "cm")    # adjust width (optional)
-  )
+    legend.key.height = unit(1.2, "cm"),
+    legend.key.width = unit(0.5, "cm"),
+    legend.position = "bottom"  # move legend to bottom
+  ) +
+  guides(color = guide_colorbar(
+    direction = "horizontal",   # make the legend horizontal
+    title.position = "top",     # title on top
+    barwidth = 15,              # width of color bar
+    barheight = 1               # height of color bar
+  ))
+
 
 ggsave(
   filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/rescaled_dz_plot.tif",
@@ -460,6 +499,48 @@ ggsave(
   dpi = 300,
   bg = "white"            # ensures white background
 )
+
+############# Plot the transect land-cover data ######
+# Make sure year is numeric
+summary_data <- summary_data %>%
+  mutate(time = as.numeric(as.character(time)))
+
+# Filter for ID 86 and years 1991-2024
+df_86 <- summary_data %>%
+  filter(ID == 86, time >= 1991, time <= 2024)
+
+# Plot the time series
+ggplot(df_86, aes(x = time, y = proportion_Int2)) +
+  geom_line(color = "blue") +  # muted yellow
+  geom_point(color = "red") +
+  labs(title = "Time Series of Proportion_Int2 for ID 86 (1991-2024)",
+       x = "Year",
+       y = "Proportion_Int2") +
+  scale_x_continuous(breaks = c(1991, 2002, 2013, 2024)) +
+  theme_minimal()
+
+##### Plot for the time series of annual mean across the eastern subregion ##
+# Filter for East subregion and years 1991-2024
+west_df <- salinity_data %>%
+  filter(subregion == "West", year >= 1991, year <= 2024)
+
+# Calculate yearly average across all sites
+annual_mean <- west_df %>%
+  group_by(year) %>%
+  summarise(mean_annual = mean(annual_avg, na.rm = TRUE))
+
+# Plot the time series
+# Create the plot and assign it to a variable
+ggplot(annual_mean, aes(x = year, y = mean_annual)) +
+  geom_line(color = "blue") +
+  geom_point(color = "red") +
+  labs(title = "Annual Mean Salinity in Western Subregion",
+       x = "Year",
+       y = "Mean Annual Salinity (PSU)") +
+  scale_x_continuous(breaks = c(1991, 2002, 2013, 2024)) +
+  theme_minimal()
+
+
 
 #### 6.6 Plot VZ correlation with salinity based on rates ######
 # Join correlation to the transects
@@ -490,11 +571,38 @@ rescaled_coords_vz <- rescaled_coords_vz %>%
     by = "row_id"
   )
 
+# transect_plot_vz <- ggplot() +
+#   geom_path(data = rescaled_coords_vz, aes(X, Y, group = ID, color = correlation), size = 3) +
+#   geom_sf(data = connection_line, color = "black", size = 2) +
+#   geom_sf(data = subset_transects_utm, color = "blue", linewidth = 2, linetype = "dashed") +
+#   scale_color_gradient(low = "#33a354",high = "#00441b", na.value = "gray") +
+#   coord_sf(datum = NA) +
+#   theme_minimal() +
+#   theme(
+#     panel.grid = element_blank(),
+#     axis.text = element_blank(),
+#     axis.title = element_blank(),
+#     axis.ticks = element_blank(),
+#     legend.title = element_text(size = 18, family = "Times"),
+#     legend.text = element_text(size = 18, family = "Times"),
+#     legend.key.height = unit(1.2, "cm"),  # make legend taller (optional)
+#     legend.key.width = unit(0.5, "cm")    # adjust width (optional)
+#   )
+
 transect_plot_vz <- ggplot() +
   geom_path(data = rescaled_coords_vz, aes(X, Y, group = ID, color = correlation), size = 3) +
   geom_sf(data = connection_line, color = "black", size = 2) +
   geom_sf(data = subset_transects_utm, color = "blue", linewidth = 2, linetype = "dashed") +
-  scale_color_gradient(low = "#33a354",high = "#00441b", na.value = "gray") +
+  scale_color_gradientn(
+    colors = c("#7f3f00", "#d9d9d9", "#33a354"),  # negative → neutral → positive (green)
+    values = rescale(c(
+      min(rescaled_coords_vz$correlation, na.rm = TRUE),
+      0,
+      max(rescaled_coords_vz$correlation, na.rm = TRUE)
+    )),
+    na.value = "gray",
+    name = "Correlation"
+  ) +
   coord_sf(datum = NA) +
   theme_minimal() +
   theme(
@@ -504,8 +612,17 @@ transect_plot_vz <- ggplot() +
     axis.ticks = element_blank(),
     legend.title = element_text(size = 18, family = "Times"),
     legend.text = element_text(size = 18, family = "Times"),
-    legend.key.height = unit(1.2, "cm"),  # make legend taller (optional)
-    legend.key.width = unit(0.5, "cm")    # adjust width (optional)
+    legend.key.height = unit(1.2, "cm"),
+    legend.key.width = unit(0.5, "cm"),
+    legend.position = "bottom"  # move legend to bottom
+  ) +
+  guides(
+    color = guide_colorbar(
+      direction = "horizontal",  # horizontal legend
+      title.position = "top",    # title above the bar
+      barwidth = 15,             # width of the color bar
+      barheight = 1              # height of the color bar
+    )
   )
 
 ggsave(

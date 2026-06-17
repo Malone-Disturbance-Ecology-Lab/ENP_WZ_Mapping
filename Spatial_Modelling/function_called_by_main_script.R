@@ -810,23 +810,48 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
   }
   
   # Reshape for plotting
-  df_long <- melt(time_series_df[, c("Year", "WZ_area_km2", "VZ_area_km2", "TZ_area_km2")],
-                  id.vars = "Year",
-                  variable.name = "Class", value.name = "Area_km2")
+  # ---- Reshape for plotting ----
+  df_long <- melt(
+    time_series_df[, c("Year", "WZ_area_km2", "VZ_area_km2", "TZ_area_km2")],
+    id.vars = "Year",
+    variable.name = "Class",
+    value.name = "Area_km2"
+  )
   df_long$Class <- gsub("_area_km2", "", df_long$Class)
   df_long$LineType <- ifelse(df_long$Year > 2024, "Projected", "Observed")
   
+  # Make Class a factor to avoid level issues
+  df_long$Class <- factor(df_long$Class, levels = c("VZ", "WZ", "TZ"))
+  
+  # ---- Base colors ----
   cols <- c("VZ" = "#00441b", "WZ" = "#b08b5b", "TZ" = "#a1d996")
+  
+  # ---- Remove NAs for plotting ----
+  df_long_plot <- df_long[!is.na(df_long$Area_km2), ]
   
   p <- ggplot(df_long, aes(x = Year, y = Area_km2, color = Class, linetype = LineType)) +
     geom_line(size = 1.2) +
     geom_point(data = subset(df_long, LineType == "Observed"), size = 3) +
+    geom_smooth(
+      data = subset(df_long_plot,
+                    Class %in% c("VZ") &
+                      Year >= 2014 & Year <= 2024 &
+                      LineType == "Observed"),
+      aes(group = Class),
+      method = "lm",
+      se = FALSE,
+      linewidth = 1.6,
+      linetype = "solid",
+      color = "grey"   # same color for both lines
+    ) +
     scale_color_manual(values = cols) +
     scale_linetype_manual(values = c("Observed" = "solid", "Projected" = "dashed"), guide = "none") +
     scale_x_continuous(
       breaks = seq(1984, 2024, by = 10), 
       limits = c(1984, 2024)
     ) +
+    #coord_cartesian(ylim = c(20, 100)) +
+    coord_cartesian(ylim = c(0, 45)) +
     labs(
       title = "Predictions of Land Cover Area",
       x = "Year",
@@ -835,11 +860,11 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
     ) +
     theme_minimal(base_size = 18, base_family = "Times New Roman") +
     theme(
-      plot.title = element_text(hjust = 0.5, face = "bold", color = "black", size = 24),
-      axis.title = element_text(color = "black", size = 20),
-      axis.text = element_text(color = "black", size = 18),
-      legend.title = element_text(color = "black", size = 18),
-      legend.text = element_text(color = "black", size = 16),
+      plot.title = element_text(hjust = 0.5, face = "bold", color = "black", size = 28),
+      axis.title = element_text(color = "black", size = 28),
+      axis.text = element_text(color = "black", size = 28),
+      legend.title = element_text(color = "black", size = 28),
+      legend.text = element_text(color = "black", size = 28),
       panel.background = element_rect(fill = "white", color = NA),
       plot.background = element_rect(fill = "white", color = NA),
       legend.background = element_rect(fill = "white"),
@@ -863,7 +888,7 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
   cat("2000–2021:", round(get_rate(2000, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
   cat("2010–2021:", round(get_rate(2010, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
   cat("2014–2024:", round(get_rate(2014, 2024, time_series_df, "VZ_area_km2"), 2), "\n")
-
+  
   # ---- Calculate total area by year ----
   time_series_df$Total_area_km2 <- time_series_df$VZ_area_km2 + 
     time_series_df$WZ_area_km2 + 
@@ -876,26 +901,26 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
   target_year <- 2022
   total_area_target <- time_series_df$Total_area_km2[time_series_df$Year == target_year]
   cat(paste("\nTotal area in", target_year, ":", round(total_area_target, 2), "km²\n"))
-
+  
   # ---- Calculate total change in area for each class ----
   calculate_change <- function(df, start_year, end_year) {
     start_row <- df[df$Year == start_year, ]
     end_row <- df[df$Year == end_year, ]
-
+    
     change_VZ <- end_row$VZ_area_km2 - start_row$VZ_area_km2
     change_WZ <- end_row$WZ_area_km2 - start_row$WZ_area_km2
     change_TZ <- end_row$TZ_area_km2 - start_row$TZ_area_km2
-
+    
     cat("\nChange in area (km²) from", start_year, "to", end_year, ":\n")
     cat("VZ:", round(change_VZ, 2), "km²\n")
     cat("WZ:", round(change_WZ, 2), "km²\n")
     cat("TZ:", round(change_TZ, 2), "km²\n")
   }
-
+  
   # Example usage: change from first to last observed year
   observed_start <- 2014
   observed_end <- 2024
-
+  
   calculate_change(time_series_df, observed_start, observed_end)
   
   # ---- Print 2024 class areas ----
@@ -923,119 +948,7 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
 # Class 3 (TZ): Rate: -0.82 pixels/year)
 
 
-plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_years = NULL) {
-  raster_files <- list.files(path = raster_folder_path, pattern = "\\.tif$", full.names = TRUE)
-  raster_stack <- rast(raster_files)
-  
-  count_classes <- function(r) {
-    values <- as.vector(r)
-    table(factor(values, levels = c(1, 2, 3)))
-  }
-  
-  class_counts <- sapply(1:nlyr(raster_stack), function(i) count_classes(raster_stack[[i]]))
-  
-  time_series_df <- data.frame(
-    Time = seq_along(raster_files),
-    VZ = class_counts[1, ],
-    WZ = class_counts[2, ],
-    TZ = class_counts[3, ]
-  )
-  
-  time_series_df$WZ_area_km2 <- time_series_df$WZ * 30 * 30 / 1e6
-  time_series_df$VZ_area_km2 <- time_series_df$VZ * 30 * 30 / 1e6
-  time_series_df$TZ_area_km2 <- time_series_df$TZ * 30 * 30 / 1e6
-  time_series_df$Year <- 1984:(1983 + length(raster_files))
-  
-  # Project future years if needed
-  if (!is.null(extend_years)) {
-    extend_to <- max(extend_years)
-    last_observed_year <- max(time_series_df$Year[time_series_df$Year <= 2024])
-    last_values <- time_series_df[time_series_df$Year == last_observed_year, ]
-    
-    # Annual change rates (km²)
-    
-    vz_rate <- 0.4922
-    wz_rate <- 0.4589
-    tz_rate <- -0.9511 ## annual rate of the predicted 25 and 50 yrs scenarios
-    
-    for (y in (last_observed_year + 1):extend_to) {
-      prev_row <- tail(time_series_df, 1)
-      new_row <- data.frame(
-        Time = max(time_series_df$Time) + 1,
-        VZ = NA, WZ = NA, TZ = NA,
-        WZ_area_km2 = prev_row$WZ_area_km2 + wz_rate,
-        VZ_area_km2 = prev_row$VZ_area_km2 + vz_rate,
-        TZ_area_km2 = prev_row$TZ_area_km2 + tz_rate,
-        Year = y
-      )
-      time_series_df <- rbind(time_series_df, new_row)
-    }
-  }
-  
-  # Reshape for plotting
-  df_long <- melt(time_series_df[, c("Year", "WZ_area_km2", "VZ_area_km2", "TZ_area_km2")],
-                  id.vars = "Year",
-                  variable.name = "Class", value.name = "Area_km2")
-  df_long$Class <- gsub("_area_km2", "", df_long$Class)
-  df_long$LineType <- ifelse(df_long$Year > 2024, "Projected", "Observed")
-  
-  cols <- c("VZ" = "#00441b", "WZ" = "#b08b5b", "TZ" = "#a1d996")
-  
-  p <- ggplot(df_long, aes(x = Year, y = Area_km2, color = Class, linetype = LineType)) +
-    geom_line(size = 1.2) +
-    geom_point(data = subset(df_long, LineType == "Observed"), size = 3) +
-    scale_color_manual(values = cols) +
-    scale_linetype_manual(values = c("Observed" = "solid", "Projected" = "dashed"), guide = "none") +
-    labs(
-      #title = "Time Series of Land Cover Area",
-      title = "Predictions of Land Cover Area",
-      x = "Year",
-      y = "Area (km²)",
-      color = "Class"
-    ) +
-    theme_minimal(base_size = 18, base_family = "Times New Roman") +
-    theme(
-      plot.title = element_text(hjust = 0.5, face = "bold", color = "black", size = 24),
-      axis.title = element_text(color = "black", size = 20),
-      axis.text = element_text(color = "black", size = 18),
-      legend.title = element_text(color = "black", size = 18),
-      legend.text = element_text(color = "black", size = 16),
-      panel.background = element_rect(fill = "white", color = "white"),
-      plot.background = element_rect(fill = "white", color = "white"),
-      legend.background = element_rect(fill = "white"),
-      legend.key = element_rect(fill = "white")
-    )
-  
-  ggsave(output_path, plot = p, width = 8, height = 6, dpi = 300, device = "tiff")
-  
-  print(paste("Plot saved to:", output_path))
-  
-  # Print change rates
-  get_rate <- function(start_year, end_year, df, col) {
-    s <- df[df$Year == start_year, col]
-    e <- df[df$Year == end_year, col]
-    rate <- (e - s) / (end_year - start_year)
-    return(rate)
-  }
-  
-  cat("VZ Change Rate (km²/year):\n")
-  cat("1984–2021:", round(get_rate(1984, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
-  cat("2000–2021:", round(get_rate(2000, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
-  cat("2010–2021:", round(get_rate(2010, 2021, time_series_df, "VZ_area_km2"), 2), "\n")
-  # --- Print coverage for first year (1984) and last observed year (2024) ---
-  first <- time_series_df[time_series_df$Year == 2013, ]
-  last  <- time_series_df[time_series_df$Year == 2024, ]
-  
-  cat("\nLand-cover area summary (km²):\n")
-  cat("Year 1984 →  VZ:", round(first$VZ_area_km2, 2),
-      " | WZ:", round(first$WZ_area_km2, 2),
-      " | TZ:", round(first$TZ_area_km2, 2), "\n")
-  
-  cat("Year 2024 →  VZ:", round(last$VZ_area_km2, 2),
-      " | WZ:", round(last$WZ_area_km2, 2),
-      " | TZ:", round(last$TZ_area_km2, 2), "\n")
-  
-}
+
 
 plot_land_cover_time_series_extend <- function(raster_folder_path, output_prefix, extend_years = NULL) {
 
@@ -1114,12 +1027,12 @@ plot_land_cover_time_series_extend <- function(raster_folder_path, output_prefix
         y = "Area (km²)",
         color = "Class"
       ) +
-      theme_minimal(base_size = 18, base_family = "Times New Roman") +
+      theme_minimal(base_size = 24, base_family = "Times New Roman") +
       theme(
-        axis.title = element_text(color = "black", size = 20),
-        axis.text = element_text(color = "black", size = 18),
-        legend.title = element_text(color = "black", size = 18),
-        legend.text = element_text(color = "black", size = 16),
+        axis.title = element_text(color = "black", size = 24),
+        axis.text = element_text(color = "black", size = 24),
+        legend.title = element_text(color = "black", size = 24),
+        legend.text = element_text(color = "black", size = 24),
         panel.background = element_rect(fill = "white", color = "white"),
         plot.background = element_rect(fill = "white", color = "white"),
         legend.background = element_rect(fill = "white"),
