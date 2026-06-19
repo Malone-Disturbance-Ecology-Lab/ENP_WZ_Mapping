@@ -851,6 +851,7 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
       limits = c(1984, 2024)
     ) +
     #coord_cartesian(ylim = c(20, 100)) +
+    #coord_cartesian(ylim = c(20, 110)) +
     coord_cartesian(ylim = c(0, 45)) +
     labs(
       title = "Predictions of Land Cover Area",

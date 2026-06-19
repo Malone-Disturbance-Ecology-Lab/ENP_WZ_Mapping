@@ -124,17 +124,17 @@ points_sf <- st_as_sf(result_df, coords = c("lon", "lat"), crs = 4326)
 points_utm <- st_transform(points_sf, crs = 32617)
 year_cols <- grep("^\\d{4}$", names(points_utm), value = TRUE)
 
-# Step 4: Loop through transects and years
-## This step takes 4.5 HOURS!!! Directly load the results.Rdata (below) instead
-# results <- lapply(1:nrow(buffer_sf), function(i) {
-#   poly <- buffer_sf$geometry[i]
-#   transect_id <- buffer_sf$transect_id[i]
-# 
-#   do.call(rbind, lapply(year_cols, function(year_col) {
-#     get_yearly_proportions(transect_id, poly, points_utm, year_col)
-#   }))
-# })
-# save(results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
+#Step 4: Loop through transects and years
+# This step takes 4.5 HOURS!!! Directly load the results.Rdata (below) instead
+results <- lapply(1:nrow(buffer_sf), function(i) {
+  poly <- buffer_sf$geometry[i]
+  transect_id <- buffer_sf$transect_id[i]
+
+  do.call(rbind, lapply(year_cols, function(year_col) {
+    get_yearly_proportions(transect_id, poly, points_utm, year_col)
+  }))
+})
+save(results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results_Roy.RData")
 ############# Output the NORTHERNEST WZ point for each transect ################
 ## it takes 4 hours!!
 #final_results <- extract_northernmost_points(buffer_sf, points_utm, year_cols)
