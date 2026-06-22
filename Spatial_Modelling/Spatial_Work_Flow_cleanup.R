@@ -92,8 +92,8 @@ ENP.transects <- ENP.transects %>%
 # plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy/", 
 #                             "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_whole.tif")
 
-plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy/Subregion_new/Region_2", 
-                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_region2.tif")
+plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy/", 
+                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_whole.tif")
 
 ## Need to move this part - this belongs to projection #######
 plot_land_cover_time_series_extend(
@@ -131,8 +131,9 @@ st_write(subset_transects,
 
 ############## Section 3 Prepare the land-cover proportion data (summary_data_df) and transects ####
 ## load the results, instead of running the four steps above. 
-load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
+#load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
 
+load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results_Roy.RData")
 # Step 3.1: Combine all land cover change data into one data frame
 summary_data_df <- do.call(rbind, results)
 summary_data_df$year <- as.double(summary_data_df$year)
