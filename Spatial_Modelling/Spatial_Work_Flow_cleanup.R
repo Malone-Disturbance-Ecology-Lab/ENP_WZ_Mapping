@@ -89,11 +89,11 @@ ENP.transects <- ENP.transects %>%
 # plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE/Subregion_new/Region_2", 
 #                             "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_eastern.tif")
 
-# plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy/", 
-#                             "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_whole.tif")
+plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy/",
+                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_whole.tif", NULL, 20, 105)
 
-plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy/", 
-                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_whole.tif")
+plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy/Subregion_new/Region_2/", 
+                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_eastern.tif", NULL, 0, 45)
 
 ## Need to move this part - this belongs to projection #######
 plot_land_cover_time_series_extend(

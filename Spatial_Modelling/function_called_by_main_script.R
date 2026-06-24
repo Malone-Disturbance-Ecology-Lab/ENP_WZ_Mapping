@@ -760,7 +760,7 @@ save_change_rate_std_plot <- function(intersection_data, output_path, time_seque
 }
 
 ## Area analysis
-plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_years = NULL) {
+plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_years = NULL, lowlimit, uplimit) {
   raster_files <- list.files(path = raster_folder_path, pattern = "\\.tif$", full.names = TRUE)
   raster_stack <- rast(raster_files)
   
@@ -850,8 +850,8 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
       breaks = seq(1984, 2024, by = 10), 
       limits = c(1984, 2024)
     ) +
-    coord_cartesian(ylim = c(20, 100)) +
-    #coord_cartesian(ylim = c(20, 110)) +
+    #coord_cartesian(ylim = c(20, 100)) +
+    coord_cartesian(ylim = c(lowlimit, uplimit)) +
     #coord_cartesian(ylim = c(0, 45)) +
     labs(
       title = "Predictions of Land Cover Area",
