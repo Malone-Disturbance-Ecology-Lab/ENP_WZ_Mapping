@@ -96,10 +96,16 @@ plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulat
                             "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_eastern.tif", NULL, 0, 45)
 
 ## Need to move this part - this belongs to projection #######
+# plot_land_cover_time_series_extend(
+#   raster_folder_path = "/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE",
+#   #raster_folder_path = "/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE/Subregion_new/Region_2",
+#   output_prefix = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_extended.tif",
+#   extend_years = c(2049, 2074)
+# )
+
 plot_land_cover_time_series_extend(
-  raster_folder_path = "/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE",
-  #raster_folder_path = "/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE/Subregion_new/Region_2",
-  output_prefix = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_extended.tif",
+  raster_folder_path = "/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy",
+  output_prefix = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/Roy_Results/land_cover_time_series_extended.tif",
   extend_years = c(2049, 2074)
 )
 
@@ -467,9 +473,10 @@ rescaled_coords_dz <- rescaled_coords_dz %>%
 transect_plot_dz <- ggplot() +
   geom_path(data = rescaled_coords_dz, aes(X, Y, group = ID, color = correlation), size = 3) +
   geom_sf(data = connection_line, color = "black", size = 2) +
-  geom_sf(data = subset_transects_utm, color = "blue", linewidth = 2, linetype = "dashed") +
+  geom_sf(data = subset_transects_utm, color = "black", linewidth = 3, linetype = "11") +
   scale_color_gradientn(
-    colors = c("#33a354", "#d9d9d9", "#7f3f00"),  # purple → neutral → brown
+    #colors = c("#33a354", "#d9d9d9", "#7f3f00"),  # purple → neutral → brown
+    colors = c("#c6dbef", "#6baed6", "#08519c"),
     values = rescale(c(min(rescaled_coords_dz$correlation, na.rm = TRUE),
                        0,
                        max(rescaled_coords_dz$correlation, na.rm = TRUE))),
@@ -599,9 +606,10 @@ rescaled_coords_vz <- rescaled_coords_vz %>%
 transect_plot_vz <- ggplot() +
   geom_path(data = rescaled_coords_vz, aes(X, Y, group = ID, color = correlation), size = 3) +
   geom_sf(data = connection_line, color = "black", size = 2) +
-  geom_sf(data = subset_transects_utm, color = "blue", linewidth = 2, linetype = "dashed") +
+  geom_sf(data = subset_transects_utm, color = "black", linewidth = 3, linetype = "11") +
   scale_color_gradientn(
-    colors = c("#7f3f00", "#d9d9d9", "#33a354"),  # negative → neutral → positive (green)
+    #colors = c("#7f3f00", "#d9d9d9", "#33a354"),  # negative → neutral → positive (green)
+    colors = c("#c6dbef", "#6baed6", "#08519c"),
     values = rescale(c(
       min(rescaled_coords_vz$correlation, na.rm = TRUE),
       0,

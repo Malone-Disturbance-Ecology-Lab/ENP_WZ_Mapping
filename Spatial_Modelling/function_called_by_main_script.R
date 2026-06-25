@@ -976,10 +976,17 @@ plot_land_cover_time_series_extend <- function(raster_folder_path, output_prefix
   time_series_df$Year <- 1984:(1983 + length(raster_files))
   
   # Define scenarios with their rates
+  # scenarios <- list(
+  #   BAU = list(vz_rate = 0.37, wz_rate = 0.33, tz_rate = -0.70),
+  #   Pessimistic = list(vz_rate = 0.16, wz_rate = 0.50, tz_rate = -0.65),
+  #   Optimistic = list(vz_rate = 0.76, wz_rate = 0.06, tz_rate = -0.82)
+  # )
+  
+  # rates resulting from Roy coefficients
   scenarios <- list(
-    BAU = list(vz_rate = 0.37, wz_rate = 0.33, tz_rate = -0.70),
-    Pessimistic = list(vz_rate = 0.16, wz_rate = 0.50, tz_rate = -0.65),
-    Optimistic = list(vz_rate = 0.76, wz_rate = 0.06, tz_rate = -0.82)
+    BAU = list(vz_rate = 0.28, wz_rate = 0.31, tz_rate = -0.58),
+    Pessimistic = list(vz_rate = 0.02, wz_rate = 0.46, tz_rate = -0.48),
+    Optimistic = list(vz_rate = 0.70, wz_rate = 0.05, tz_rate = -0.75)
   )
   
   # Loop through each scenario
@@ -1018,10 +1025,28 @@ plot_land_cover_time_series_extend <- function(raster_folder_path, output_prefix
     
     cols <- c("VZ" = "#00441b", "WZ" = "#b08b5b", "TZ" = "#a1d996")
     
+    # p <- ggplot(df_long, aes(x = Year, y = Area_km2, color = Class, linetype = LineType)) +
+    #   geom_line(size = 1.2) +
+    #   geom_point(data = subset(df_long, LineType == "Observed"), size = 3) +
     p <- ggplot(df_long, aes(x = Year, y = Area_km2, color = Class, linetype = LineType)) +
-      geom_line(size = 1.2) +
-      geom_point(data = subset(df_long, LineType == "Observed"), size = 3) +
-      scale_color_manual(values = cols) +
+      geom_line(size = 1.2, alpha = 0.35) +
+      
+      # Observed points
+      geom_point(
+        data = subset(df_long, LineType == "Observed"),
+        size = 3
+      ) +
+      
+      # Final projected point (2074) as solid circle
+      geom_point(
+        data = subset(df_long, Year == 2074),
+        aes(color = Class),
+        shape = 16,
+        size = 4,
+        show.legend = FALSE
+      ) +
+      
+     scale_color_manual(values = cols) +
       scale_linetype_manual(values = c("Observed" = "solid", "Projected" = "dashed"), guide = "none") +
       labs(
         x = "Year",
