@@ -255,7 +255,7 @@ extract_northernmost_points <- function(buffer_sf, points_sf, year_cols) {
 }
 
 ########## the function provides options on extracting north or south points ####
-extract_extreme_points <- function(buffer_sf, points_sf, year_cols, direction = "north") {
+extract_extreme_points <- function(buffer_sf, points_sf, year_cols, direction = "north", class) {
   
   # Nested helper function
   find_extreme_point <- function(polygon, year_col, points_sf, direction) {
@@ -919,7 +919,7 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
   }
   
   # Example usage: change from first to last observed year
-  observed_start <- 2014
+  observed_start <- 1984
   observed_end <- 2024
   
   calculate_change(time_series_df, observed_start, observed_end)
@@ -1073,8 +1073,8 @@ plot_land_cover_time_series_extend <- function(raster_folder_path, output_prefix
     
     # ---- Print final VZ area ----
     final_year <- max(ts_df$Year)
-    final_vz_area <- ts_df$TZ_area_km2[ts_df$Year == final_year]
-    cat(paste0("Scenario: ", sc, " | Final TZ area (km²) in ", final_year, ": ", round(final_vz_area, 3), "\n"))
+    final_vz_area <- ts_df$VZ_area_km2[ts_df$Year == final_year]
+    cat(paste0("Scenario: ", sc, " | Final VZ area (km²) in ", final_year, ": ", round(final_vz_area, 3), "\n"))
   }
   
   

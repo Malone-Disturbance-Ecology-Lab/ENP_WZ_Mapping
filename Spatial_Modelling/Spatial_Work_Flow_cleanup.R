@@ -297,7 +297,9 @@ calculate_length_change_averages(rate_results, "length_change_Int1", custom_rang
 ####Section 5 - Generating interior & exterior boundary of WZ shift 1984-2024######
 
 # Section 5.1 Generating interior boundary shift line shapefiles
-load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
+#load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
+load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
+#dz_north <- load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
 points_1984 <- final_results %>% filter(Year == 1984)
 points_1994 <- final_results %>% filter(Year == 1994)
 points_2024 <- final_results %>% filter(Year == 2024)
@@ -310,8 +312,8 @@ sf_1984 <- st_as_sf(points_1984_clean, coords = c("X", "Y"), crs = 32617)
 sf_2024 <- st_as_sf(points_2024_clean, coords = c("X", "Y"), crs = 32617)
 sf_1994 <- st_as_sf(points_1994_clean, coords = c("X", "Y"), crs = 32617)
 
-st_write(sf_1984, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_1984.shp", delete_layer = TRUE)
-st_write(sf_2024, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_2024.shp", delete_layer = TRUE)
+st_write(sf_1984, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_1984_Roy.shp", delete_layer = TRUE)
+st_write(sf_2024, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_2024_Roy.shp", delete_layer = TRUE)
 
 sf_1994$Polygon_ID <- as.integer(sf_1994$Polygon_ID)
 sf_1984$Polygon_ID <- as.integer(sf_1984$Polygon_ID)
@@ -322,7 +324,7 @@ line_sf <- calculate_signed_distance(
   #sf_2024 = sf_2024,
   sf_2024 = sf_2024,
   output_dir = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/",
-  filename = "north_interior_.shp"
+  filename = "north_interior_Roy.shp"
 )
 line_sf$annual_rate_m <- line_sf$signed_distance_m / 40
 
@@ -344,6 +346,128 @@ line_sf_s <- calculate_signed_distance(
 )
 
 line_sf_s$annual_rate_m <- line_sf_s$signed_distance_m / 40
+
+##### calculate distance to coast ###
+
+#==================================================
+# 1. Convert ENP transects from WGS84 to UTM 17N
+#==================================================
+
+ENP.transects_utm <- st_transform(
+  ENP.transects,
+  crs = 32617
+)
+
+
+#==================================================
+# 2. Remove rows with missing coordinates
+#==================================================
+
+points_1984_clean <- points_1984 %>%
+  filter(!is.na(X), !is.na(Y))
+
+
+#==================================================
+# 3. Convert points to sf
+#    (also UTM 17N)
+#==================================================
+
+points_sf <- st_as_sf(
+  points_2024_clean,
+  coords = c("X", "Y"),
+  crs = 32617
+)
+
+
+#==================================================
+# 4. Function to extract southern-most point
+#==================================================
+
+get_south_point <- function(line) {
+  
+  coords <- st_coordinates(line)
+  
+  # minimum northing = southern-most
+  south_coord <- coords[which.min(coords[,2]), 1:2]
+  
+  return(st_point(south_coord))
+}
+
+
+#==================================================
+# 5. Extract southernmost point of every transect
+#==================================================
+
+south_transects <- st_sf(
+  ID = ENP.transects_utm$ID,
+  geometry = st_sfc(
+    lapply(
+      st_geometry(ENP.transects_utm),
+      get_south_point
+    ),
+    crs = st_crs(ENP.transects_utm)
+  )
+)
+
+
+#==================================================
+# 6. Match Polygon_ID with transect ID
+#==================================================
+
+idx <- match(
+  points_sf$Polygon_ID,
+  south_transects$ID
+)
+
+
+# remove points without corresponding transects
+valid <- !is.na(idx)
+
+points_sf <- points_sf[valid, ]
+
+south_geom <- st_geometry(south_transects)[idx[valid]]
+
+
+#==================================================
+# 7. Calculate distance (meters)
+#==================================================
+
+points_sf$distance_south_m <- as.numeric(
+  st_distance(
+    points_sf,
+    south_geom,
+    by_element = TRUE
+  )
+)
+
+
+#==================================================
+# 8. Average distance
+#==================================================
+
+mean_distance <- mean(
+  points_sf$distance_south_m,
+  na.rm = TRUE
+)
+
+print(mean_distance)
+
+
+#==================================================
+# 9. Back to dataframe if needed
+#==================================================
+
+points_1984_clean <- points_sf %>%
+  st_drop_geometry()
+
+
+#==================================================
+# 8. Convert back to dataframe if needed
+#==================================================
+
+points_1984_clean <- points_sf %>%
+  st_drop_geometry()
+
 
 ###################### Section 6 - processing salinity data ###########
 ### Section 6.1 read in the salinity data
@@ -471,38 +595,62 @@ rescaled_coords_dz <- rescaled_coords_dz %>%
   )
 
 transect_plot_dz <- ggplot() +
-  geom_path(data = rescaled_coords_dz, aes(X, Y, group = ID, color = correlation), size = 3) +
-  geom_sf(data = connection_line, color = "black", size = 2) +
-  geom_sf(data = subset_transects_utm, color = "black", linewidth = 3, linetype = "11") +
-  scale_color_gradientn(
-    #colors = c("#33a354", "#d9d9d9", "#7f3f00"),  # purple → neutral → brown
-    colors = c("#c6dbef", "#6baed6", "#08519c"),
-    values = rescale(c(min(rescaled_coords_dz$correlation, na.rm = TRUE),
-                       0,
-                       max(rescaled_coords_dz$correlation, na.rm = TRUE))),
-    na.value = "gray",
-    name = "Correlation"
-  ) +
-  coord_sf(datum = NA) +
-  theme_minimal() +
-  theme(
-    panel.grid = element_blank(),
-    axis.text = element_blank(),
-    axis.title = element_blank(),
-    axis.ticks = element_blank(),
-    legend.title = element_text(size = 18, family = "Times"),
-    legend.text = element_text(size = 18, family = "Times"),
-    legend.key.height = unit(1.2, "cm"),
-    legend.key.width = unit(0.5, "cm"),
-    legend.position = "bottom"  # move legend to bottom
-  ) +
-  guides(color = guide_colorbar(
-    direction = "horizontal",   # make the legend horizontal
-    title.position = "top",     # title on top
-    barwidth = 15,              # width of color bar
-    barheight = 1               # height of color bar
-  ))
-
+    geom_path(
+      data = rescaled_coords_dz,
+      aes(X, Y, group = ID, color = correlation),
+      linewidth = 3
+    ) +
+    geom_sf(data = connection_line, color = "black", linewidth = 2) +
+    geom_sf(
+      data = subset_transects_utm,
+      color = "black",
+      linewidth = 3,
+      linetype = "11"
+    ) +
+    scale_color_gradientn(
+      colors = c("#c6dbef", "#6baed6", "#08519c"),
+      values = scales::rescale(c(-0.6, 0, 0.6)),
+      limits = c(-0.6, 0.6),
+      breaks = c(-0.6, -0.3, 0, 0.3, 0.6),
+      oob = scales::squish,
+      na.value = "grey80",
+      name = "Correlation"
+    ) +
+    coord_sf(datum = NA, expand = FALSE) +
+    theme_classic() +
+    theme(
+      # white backgrounds
+      panel.background = element_rect(fill = "white", colour = NA),
+      plot.background  = element_rect(fill = "white", colour = NA),
+      
+      # remove grids
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      
+      # remove axes
+      axis.title = element_blank(),
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      axis.line = element_blank(),
+      
+      # remove border
+      panel.border = element_blank(),
+      
+      # legend
+      legend.position = "bottom",
+      legend.title = element_text(size = 18, family = "Times"),
+      legend.text = element_text(size = 18, family = "Times"),
+      legend.key.height = unit(1.2, "cm"),
+      legend.key.width = unit(0.5, "cm")
+    ) +
+    guides(
+      color = guide_colorbar(
+        direction = "horizontal",
+        title.position = "top",
+        barwidth = unit(15, "cm"),
+        barheight = unit(0.8, "cm")
+      )
+    )
 
 ggsave(
   filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/rescaled_dz_plot_roy.tif",
@@ -640,6 +788,55 @@ transect_plot_vz <- ggplot() +
     )
   )
 
+transect_plot_vz <- ggplot() +
+  geom_path(
+    data = rescaled_coords_vz,
+    aes(X, Y, group = ID, color = correlation),
+    size = 3
+  ) +
+  geom_sf(
+    data = connection_line,
+    color = "black",
+    size = 2
+  ) +
+  geom_sf(
+    data = subset_transects_utm,
+    color = "black",
+    linewidth = 3,
+    linetype = "11"
+  ) +
+  scale_color_gradientn(
+    colors = c("#c6dbef", "#6baed6", "#08519c"),
+    limits = c(-0.6, 0.6),
+    values = scales::rescale(c(-0.6, 0, 0.6)),
+    breaks = c(-0.6, -0.3, 0, 0.3, 0.6),
+    labels = c("-0.6", "-0.3", "0", "0.3", "0.6"),
+    na.value = "gray",
+    name = "Correlation",
+    oob = scales::squish
+  ) +
+  coord_sf(datum = NA) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    legend.title = element_text(size = 18, family = "Times"),
+    legend.text = element_text(size = 14, family = "Times"),
+    legend.key.height = grid::unit(0.8, "cm"),
+    legend.key.width = grid::unit(2.5, "cm"),
+    legend.position = "bottom"
+  ) +
+  guides(
+    color = guide_colorbar(
+      direction = "horizontal",
+      title.position = "top",
+      title.hjust = 0.5,
+      barwidth = 12,
+      barheight = 0.8
+    )
+  )
 ggsave(
   filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/rescaled_vz_plot_roy.tif",
   plot = transect_plot_vz,   # use the named plot object

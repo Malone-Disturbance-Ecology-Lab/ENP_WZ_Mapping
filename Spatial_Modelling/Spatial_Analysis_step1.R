@@ -52,7 +52,8 @@ rast.files <- list.files(
   full.names = TRUE
 )
 
-setwd( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE')
+#setwd( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE')
+setwd( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/Roy')
 coast <- rast(rast.files) %>%
   terra::project("+proj=longlat +datum=WGS84", method = "near") ## "near to make sure class value is not interpolated "
 terra::time(coast) <-  substr(rast.files, 8, 11) %>% as.numeric # get the time out of the list of file names
@@ -122,9 +123,14 @@ year_cols <- grep("^\\d{4}$", names(points_utm), value = TRUE)
 # save(results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
 ############# Output the NORTHERNEST WZ point for each transect ################
 ## it takes 4 hours!!
-final_results <- extract_northernmost_points(buffer_sf, points_utm, year_cols)
-south_results <- extract_extreme_points(buffer_sf, points_sf, year_cols, direction = "south")
-#save(final_results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
+final_results <- extract_northernmost_points(buffer_sf, points_utm, year_cols, 2)
+south_results <- extract_extreme_points(buffer_sf, points_sf, year_cols, direction = "south", 2) ## 2 is for DZ
+
+VZ_north_results <- extract_extreme_points(buffer_sf, points_sf, year_cols, direction = "north", 1) ## 1 is for VZ
+VZ_south_results <- extract_extreme_points(buffer_sf, points_sf, year_cols, direction = "south", 1) ## 1 is for VZ
+
+save(final_results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
+save(south_results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/south_point_Roy.RData")
 load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
 # Filter data for each year
 points_1984 <- final_results %>% filter(Year == 1984)
