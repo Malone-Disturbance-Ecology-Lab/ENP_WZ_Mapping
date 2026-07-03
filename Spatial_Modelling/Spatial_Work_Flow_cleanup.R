@@ -298,7 +298,11 @@ calculate_length_change_averages(rate_results, "length_change_Int1", custom_rang
 
 # Section 5.1 Generating interior boundary shift line shapefiles
 #load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
-load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
+#load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
+
+load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy_VZ.RData")
+
+
 #dz_north <- load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
 points_1984 <- final_results %>% filter(Year == 1984)
 points_1994 <- final_results %>% filter(Year == 1994)
@@ -312,8 +316,8 @@ sf_1984 <- st_as_sf(points_1984_clean, coords = c("X", "Y"), crs = 32617)
 sf_2024 <- st_as_sf(points_2024_clean, coords = c("X", "Y"), crs = 32617)
 sf_1994 <- st_as_sf(points_1994_clean, coords = c("X", "Y"), crs = 32617)
 
-st_write(sf_1984, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_1984_Roy.shp", delete_layer = TRUE)
-st_write(sf_2024, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_2024_Roy.shp", delete_layer = TRUE)
+st_write(sf_1984, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_1984_Roy_VZ.shp", delete_layer = TRUE)
+st_write(sf_2024, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_2024_Roy_VZ.shp", delete_layer = TRUE)
 
 sf_1994$Polygon_ID <- as.integer(sf_1994$Polygon_ID)
 sf_1984$Polygon_ID <- as.integer(sf_1984$Polygon_ID)
@@ -324,8 +328,9 @@ line_sf <- calculate_signed_distance(
   #sf_2024 = sf_2024,
   sf_2024 = sf_2024,
   output_dir = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/",
-  filename = "north_interior_Roy.shp"
+  filename = "north_interior_Roy_VZ.shp"
 )
+
 line_sf$annual_rate_m <- line_sf$signed_distance_m / 40
 
 # Section 5.2 Generating exterior boundary shift line shapefiles
@@ -353,10 +358,11 @@ line_sf_s$annual_rate_m <- line_sf_s$signed_distance_m / 40
 # 1. Convert ENP transects from WGS84 to UTM 17N
 #==================================================
 
-ENP.transects_utm <- st_transform(
-  ENP.transects,
-  crs = 32617
-)
+ENP.transects_utm <- st_read(
+  "/Volumes/Malonelab/Research/Whitezone/Data/Intersected_Transects.shp",
+  quiet = TRUE
+) |>
+  st_transform(32617)
 
 
 #==================================================

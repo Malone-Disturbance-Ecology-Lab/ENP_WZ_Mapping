@@ -202,7 +202,7 @@ extract_northernmost_points <- function(buffer_sf, points_sf, year_cols) {
     }
     
     # Filter points with land cover == 2 for that year
-    pts_in_poly <- pts_in_poly %>% filter(.data[[year_col]] == 2)
+    pts_in_poly <- pts_in_poly %>% filter(.data[[year_col]] == 1)
     
     if (nrow(pts_in_poly) == 0) {
       return(data.frame(
@@ -214,7 +214,8 @@ extract_northernmost_points <- function(buffer_sf, points_sf, year_cols) {
     }
     
     coords <- st_coordinates(pts_in_poly)
-    max_y_idx <- which.max(coords[, "Y"])
+    #max_y_idx <- which.max(coords[, "Y"]) ## northernmost
+    max_y_idx <- which.min(coords[, "Y"]) ## southernmost
     
     data.frame(
       Year = year_col,
@@ -272,7 +273,7 @@ extract_extreme_points <- function(buffer_sf, points_sf, year_cols, direction = 
     }
     
     # Filter points with land cover == 2 for that year
-    pts_in_poly <- pts_in_poly %>% filter(.data[[year_col]] == 2)
+    pts_in_poly <- pts_in_poly %>% filter(.data[[year_col]] == 1)
     
     if (nrow(pts_in_poly) == 0) {
       return(data.frame(
@@ -537,6 +538,9 @@ calculate_signed_distance <- function(sf_1984, sf_2024, output_dir, filename) {
   line_sf$distance_m <- as.numeric(st_length(line_sf))
   line_sf$signed_distance_m <- line_sf$distance_m * line_sf$north_flag
   
+  # Remove transects shorter than 50 m
+  line_sf <- line_sf %>%
+    filter(distance_m >= 50)
   # Step 7: Summary stats
   signed_avg_distance <- mean(line_sf$signed_distance_m)
   max_expansion_distance <- max(line_sf$distance_m[line_sf$north_flag == 1])
@@ -554,6 +558,7 @@ calculate_signed_distance <- function(sf_1984, sf_2024, output_dir, filename) {
   # Optionally return the sf object
   return(line_sf)
 }
+
 
 #### obtain southern point of the intersects between study area and transects 
 

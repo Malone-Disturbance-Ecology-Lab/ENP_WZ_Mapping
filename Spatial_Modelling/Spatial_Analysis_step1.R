@@ -123,11 +123,17 @@ year_cols <- grep("^\\d{4}$", names(points_utm), value = TRUE)
 # save(results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
 ############# Output the NORTHERNEST WZ point for each transect ################
 ## it takes 4 hours!!
-final_results <- extract_northernmost_points(buffer_sf, points_utm, year_cols, 2)
-south_results <- extract_extreme_points(buffer_sf, points_sf, year_cols, direction = "south", 2) ## 2 is for DZ
+final_results <- extract_northernmost_points(buffer_sf, points_utm, year_cols)
+south_results <- extract_northernmost_points(buffer_sf, points_utm, year_cols) ## 2 is for DZ
 
 VZ_north_results <- extract_extreme_points(buffer_sf, points_sf, year_cols, direction = "north", 1) ## 1 is for VZ
 VZ_south_results <- extract_extreme_points(buffer_sf, points_sf, year_cols, direction = "south", 1) ## 1 is for VZ
+
+save(final_results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
+save(south_results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/south_point_Roy.RData")
+
+save(final_results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy_VZ.RData")
+
 
 save(final_results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
 save(south_results, file = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/south_point_Roy.RData")
