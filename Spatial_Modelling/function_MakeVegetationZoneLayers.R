@@ -18,7 +18,7 @@ polygonize_SpatRast <- function( stack){
     names(rast) <- 'layers'
     wz.vector <- as.polygons(rast, dissolve=T) 
     
-    wz.vector %>% plot
+    #wz.vector %>% plot
     
     wz.vector$time <- time(rast)
     
@@ -49,4 +49,30 @@ Trans_Intersection <- function( transects, polygons ){
   
   hist(Intersect$length.perc, main = "Histogram of Percentage of Intersection over the Transect")
   return( Intersect)
+}
+
+
+polygonize_SpatRast_new <- function(stack) {
+  all_polygons <- list()
+  
+  for (i in 1:nlyr(stack)) {
+    cat("Processing layer", i, "\n")
+    
+    r <- stack[[i]]
+    names(r) <- "class"
+    
+    # Convert to factor to keep class values distinct
+    r_factor <- as.factor(r)
+    
+    # Polygonize with dissolve = TRUE to get polygons by class
+    p <- as.polygons(r_factor, dissolve = TRUE)
+    
+    # Add layer info (optional)
+    p$layer <- names(stack)[i]
+    
+    all_polygons[[i]] <- sf::st_as_sf(p)
+  }
+  
+  result <- do.call(rbind, all_polygons)
+  return(result)
 }
