@@ -90,10 +90,10 @@ ENP.transects <- ENP.transects %>%
 #                             "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_eastern.tif")
 
 plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy/",
-                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_whole.tif", NULL, 20, 105)
+                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_whole.tif", NULL, 20, 105, 1984)
 
-plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy/Subregion_new/Region_2/", 
-                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_eastern.tif", NULL, 0, 45)
+plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy/Subregion_new/Region_0/", 
+                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_western.tif", NULL, 0, 45, 1984)
 
 ## Need to move this part - this belongs to projection #######
 # plot_land_cover_time_series_extend(
@@ -301,7 +301,8 @@ calculate_length_change_averages(rate_results, "length_change_Int1", custom_rang
 #load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
 
 load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy_VZ.RData")
-
+#load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/south_point_Roy.RData")
+#final_results <- south_results
 
 #dz_north <- load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
 points_1984 <- final_results %>% filter(Year == 1984)
@@ -328,7 +329,7 @@ line_sf <- calculate_signed_distance(
   #sf_2024 = sf_2024,
   sf_2024 = sf_2024,
   output_dir = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/",
-  filename = "north_interior_Roy_VZ.shp"
+  filename = "south_interior_Roy_VZ.shp"
 )
 
 line_sf$annual_rate_m <- line_sf$signed_distance_m / 40

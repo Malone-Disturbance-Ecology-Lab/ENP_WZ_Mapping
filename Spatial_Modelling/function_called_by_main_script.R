@@ -539,8 +539,8 @@ calculate_signed_distance <- function(sf_1984, sf_2024, output_dir, filename) {
   line_sf$signed_distance_m <- line_sf$distance_m * line_sf$north_flag
   
   # Remove transects shorter than 50 m
-  line_sf <- line_sf %>%
-    filter(distance_m >= 50)
+  # line_sf <- line_sf %>%
+  #   filter(distance_m >= 50)
   # Step 7: Summary stats
   signed_avg_distance <- mean(line_sf$signed_distance_m)
   max_expansion_distance <- max(line_sf$distance_m[line_sf$north_flag == 1])
@@ -765,7 +765,7 @@ save_change_rate_std_plot <- function(intersection_data, output_path, time_seque
 }
 
 ## Area analysis
-plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_years = NULL, lowlimit, uplimit) {
+plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_years = NULL, lowlimit, uplimit, startingyear) {
   raster_files <- list.files(path = raster_folder_path, pattern = "\\.tif$", full.names = TRUE)
   raster_stack <- rast(raster_files)
   
@@ -924,7 +924,7 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
   }
   
   # Example usage: change from first to last observed year
-  observed_start <- 1984
+  observed_start <- startingyear
   observed_end <- 2024
   
   calculate_change(time_series_df, observed_start, observed_end)
