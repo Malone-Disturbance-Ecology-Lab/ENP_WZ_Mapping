@@ -298,9 +298,9 @@ calculate_length_change_averages(rate_results, "length_change_Int1", custom_rang
 
 # Section 5.1 Generating interior boundary shift line shapefiles
 #load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
-#load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
+load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
 
-load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy_VZ.RData")
+#load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy_VZ.RData")
 #load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/south_point_Roy.RData")
 #final_results <- south_results
 
@@ -329,7 +329,7 @@ line_sf <- calculate_signed_distance(
   #sf_2024 = sf_2024,
   sf_2024 = sf_2024,
   output_dir = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/",
-  filename = "south_interior_Roy_VZ.shp"
+  filename = "north_interior_Roy_DZ.shp"
 )
 
 line_sf$annual_rate_m <- line_sf$signed_distance_m / 40
