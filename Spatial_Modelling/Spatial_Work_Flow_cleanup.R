@@ -57,14 +57,14 @@ source( './function_Make_TransectLayers.R')
 source( './function_called_by_main_script.R')
 
 rast.files <- list.files(
-  path = '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE',
+  path = '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/Roy',
   pattern = "^raster.*\\.tif$",
   full.names = TRUE
 )
 
 ### Section 2 - Read in raster stack and transects and make plots ####
 ### Section 2.1 - read in raster stack ###
-setwd( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE')
+setwd( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/Roy')
 
 coast <- rast(rast.files) %>%
   terra::project("+proj=longlat +datum=WGS84", method = "near") ## "near to make sure class value is not interpolated "
@@ -93,7 +93,7 @@ plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulat
                             "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_whole.tif", NULL, 20, 105, 1984)
 
 plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy/Subregion_new/Region_0/", 
-                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_western.tif", NULL, 0, 45, 1984)
+                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_western.tif", NULL, 0, 45, 2013)
 
 ## Need to move this part - this belongs to projection #######
 # plot_land_cover_time_series_extend(
@@ -743,8 +743,18 @@ rescaled_coords_vz <- rescaled_coords_vz %>%
 # transect_plot_vz <- ggplot() +
 #   geom_path(data = rescaled_coords_vz, aes(X, Y, group = ID, color = correlation), size = 3) +
 #   geom_sf(data = connection_line, color = "black", size = 2) +
-#   geom_sf(data = subset_transects_utm, color = "blue", linewidth = 2, linetype = "dashed") +
-#   scale_color_gradient(low = "#33a354",high = "#00441b", na.value = "gray") +
+#   geom_sf(data = subset_transects_utm, color = "black", linewidth = 3, linetype = "11") +
+#   scale_color_gradientn(
+#     #colors = c("#7f3f00", "#d9d9d9", "#33a354"),  # negative → neutral → positive (green)
+#     colors = c("#c6dbef", "#6baed6", "#08519c"),
+#     values = rescale(c(
+#       min(rescaled_coords_vz$correlation, na.rm = TRUE),
+#       0,
+#       max(rescaled_coords_vz$correlation, na.rm = TRUE)
+#     )),
+#     na.value = "gray",
+#     name = "Correlation"
+#   ) +
 #   coord_sf(datum = NA) +
 #   theme_minimal() +
 #   theme(
@@ -754,46 +764,18 @@ rescaled_coords_vz <- rescaled_coords_vz %>%
 #     axis.ticks = element_blank(),
 #     legend.title = element_text(size = 18, family = "Times"),
 #     legend.text = element_text(size = 18, family = "Times"),
-#     legend.key.height = unit(1.2, "cm"),  # make legend taller (optional)
-#     legend.key.width = unit(0.5, "cm")    # adjust width (optional)
+#     legend.key.height = unit(1.2, "cm"),
+#     legend.key.width = unit(0.5, "cm"),
+#     legend.position = "bottom"  # move legend to bottom
+#   ) +
+#   guides(
+#     color = guide_colorbar(
+#       direction = "horizontal",  # horizontal legend
+#       title.position = "top",    # title above the bar
+#       barwidth = 15,             # width of the color bar
+#       barheight = 1              # height of the color bar
+#     )
 #   )
-
-transect_plot_vz <- ggplot() +
-  geom_path(data = rescaled_coords_vz, aes(X, Y, group = ID, color = correlation), size = 3) +
-  geom_sf(data = connection_line, color = "black", size = 2) +
-  geom_sf(data = subset_transects_utm, color = "black", linewidth = 3, linetype = "11") +
-  scale_color_gradientn(
-    #colors = c("#7f3f00", "#d9d9d9", "#33a354"),  # negative → neutral → positive (green)
-    colors = c("#c6dbef", "#6baed6", "#08519c"),
-    values = rescale(c(
-      min(rescaled_coords_vz$correlation, na.rm = TRUE),
-      0,
-      max(rescaled_coords_vz$correlation, na.rm = TRUE)
-    )),
-    na.value = "gray",
-    name = "Correlation"
-  ) +
-  coord_sf(datum = NA) +
-  theme_minimal() +
-  theme(
-    panel.grid = element_blank(),
-    axis.text = element_blank(),
-    axis.title = element_blank(),
-    axis.ticks = element_blank(),
-    legend.title = element_text(size = 18, family = "Times"),
-    legend.text = element_text(size = 18, family = "Times"),
-    legend.key.height = unit(1.2, "cm"),
-    legend.key.width = unit(0.5, "cm"),
-    legend.position = "bottom"  # move legend to bottom
-  ) +
-  guides(
-    color = guide_colorbar(
-      direction = "horizontal",  # horizontal legend
-      title.position = "top",    # title above the bar
-      barwidth = 15,             # width of the color bar
-      barheight = 1              # height of the color bar
-    )
-  )
 
 transect_plot_vz <- ggplot() +
   geom_path(
