@@ -837,18 +837,18 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
   p <- ggplot(df_long, aes(x = Year, y = Area_km2, color = Class, linetype = LineType)) +
     geom_line(size = 1.2) +
     geom_point(data = subset(df_long, LineType == "Observed"), size = 3) +
-    geom_smooth(
-      data = subset(df_long_plot,
-                    Class %in% c("VZ") &
-                      Year >= 2014 & Year <= 2024 &
-                      LineType == "Observed"),
-      aes(group = Class),
-      method = "lm",
-      se = FALSE,
-      linewidth = 1.6,
-      linetype = "solid",
-      color = "grey"   # same color for both lines
-    ) +
+    # geom_smooth(
+    #   data = subset(df_long_plot,
+    #                 Class %in% c("VZ") &
+    #                   Year >= 2014 & Year <= 2024 &
+    #                   LineType == "Observed"),
+    #   aes(group = Class),
+    #   method = "lm",
+    #   se = FALSE,
+    #   linewidth = 1.6,
+    #   linetype = "solid",
+    #   color = "grey"   # same color for both lines
+    # ) +
     scale_color_manual(values = cols) +
     scale_linetype_manual(values = c("Observed" = "solid", "Projected" = "dashed"), guide = "none") +
     scale_x_continuous(

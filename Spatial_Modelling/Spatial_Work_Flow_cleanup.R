@@ -86,11 +86,11 @@ ENP.transects <- ENP.transects %>%
   dplyr::select(-centroid)  # remove if centroid is not needed
 
 ### Section 2.2 - plot time series of land cover change ###
-# plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE/Subregion_new/Region_2", 
-#                             "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series_eastern.tif")
+plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE/",
+                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series.tif", NULL, 20, 105,2014)
 
 plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy/",
-                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_whole.tif", NULL, 20, 105, 1984)
+                            "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_whole.tif", NULL, 20, 105,2014)
 
 plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/Roy/Subregion_new/Region_0/", 
                             "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/roy_western.tif", NULL, 0, 45, 2013)
@@ -839,7 +839,7 @@ ggsave(
 
 ########## Statistical test on subregional differences of correlation ######
 # 1. Remove rows with duplicated IDs (remove the first occurrence)
-rescaled_coords_clean <- rescaled_coords_vz %>%
+rescaled_coords_clean <- rescaled_coords_dz %>%
   group_by(ID) %>%
   mutate(row_number = row_number()) %>%
   filter(row_number != 1) %>%  # remove the first row for each ID
