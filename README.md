@@ -5,10 +5,11 @@
 **Project Overview**: 
 This project uses Landsat optical remote sensing observations to map the land-cover changes of the Southeast Saline Everglades (SESE) coastal wetlands between 1984 to 2024. Land covers were classified into "Vegetation Zone" (VZ, mangroves), "White Zone" (WZ, dead aboveground biomass with exposed marl), and "Transition Zone" (TZ, with optical signature between the VZ and WZ). 
 
+
 About 1500 point samples were manually classified for each of the eight years out of the 41 years time span (with ~6 years interval) using available high-resolution Google Earth basemap imagery. We used an Machine Learning (ML) approach to spatially and temporally for classification for the SESE for the past 40 years. 
 
 The results land-cover maps will be used for spatial modelling (next part) to track the trend of white zone expansion and mangrove encroachment.   
-
+  
 Note: The scripts pull data using absolute directory on the server. When a script calls another script/function, it uses relative directory. This way allows users to directly run the code.
 
 **Input data**:
@@ -25,12 +26,13 @@ GEE code collects time series of optical observations. The Python jupyter notebo
 To reproduce the results, one need to follow the six-step procedure. The order of steps were described as below.
 
 
-Step 1 Generating shapefile for GEE to extract LS values
-Step 2 GEE code to extract annual median values of LS data
-Step 3 Sensitivity analysis for selecting the best VZ threshold
-Step 4 Using the GE years to test spatial and temporal transfer learning
-Step 5 Emulation process to generate land cover maps for the past 41 years
-Step 6 Evaluate products for selecting optimal change detection threshold & Plot time series maps
+Step 1 (`01_Generating_pixels_for_GEE.ipynb`): Generating shapefile for GEE to extract LS values.
+Step 2 (`02_GEE_multi_year_median_extraction.rtf`, `02_GEE_single_year_median_extraction.rtf`): GEE code to extract annual median values of LS data.
+Step 3 (`03_Sensitivity_analysis_for_VZ_threshold.ipynb`): Sensitivity analysis for selecting the best VZ threshold.
+Step 4 (`04_Spatial_Transfer_for_GE_year_maps.ipynb`, `04_Temporal_Transfer_for_GE_years_and_Verification.ipynb`): Using the GE years to test spatial and temporal transfer learning.
+Step 5 (`05_Temporal&Spatial_Transferfor_non-GE_years_L5_1984-2003.ipynb`, `05_Temporal&Spatial_Transferfor_non-GE_years_L7&8_2004-2023.ipynb`): Emulation process to generate land cover maps for the past 41 years.
+Step 6 (`06_Evaluation_with_Independent_Point_Samples.ipynb`, `06_Illustration_of_Time_Series.ipynb`): Evaluate products for selecting optimal change detection threshold & Plot time series maps.
+
 
 The final output of time series raster (Change detection threshold 0f 0.6 with Closest GE years) is output for spatial modelling.
 
