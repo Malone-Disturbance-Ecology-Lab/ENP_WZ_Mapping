@@ -61,31 +61,20 @@ The entire work flow can be run by `Spatial_Work_Flow_cleanup.R`. This master sc
  1.  Setting up 
  2.  Read in raster stack and transects 
    2.1 - Read in raster stack
-   2.2 - Plot time series of land cover change for figures in the manuscript
+   2.2 - Plot time series of land cover change for figures in the manuscript (Fig 5 and 8)
    2.3 - Output the transects for splitting the SESE into subregions
  3. Prepare the land-cover proportion data (summary_data_df) and transects
    3.1 - Combine all land cover change data into one data frame
    3.2 - Extract transects intersected by the SESE polygon
- 4. Calculate transect-level change rates for DZ and VZ 
- 5. Generating interior boundary of DZ shift 1984-2024
+ 4. Calculate transect-level change rates for DZ and VZ (Results section)
+ 5. Generating interior boundary of DZ shift (Results section)
    5.1 - Calculate DZ interior boundary shift rates
    5.2 - Calculate distance to coast
- 6. Processing salinity data and plot results of correlation
-    6.1 - read in the salinity data
-    6.2 - Calculate correlations by region
+ 6. Processing salinity data and plot results of correlation (Fig7)
+    6.1 - Read in the salinity data
+    6.2 - Calculate correlations by subregion
     6.3 - Join with the lat and lon info
     6.4 - Plot DZ correlation with salinity based on rates
     6.5 - Plot VZ correlation with salinity based on rates
 
-**Function Scripts**:
 
-Functions:
-  1. `function_MakeVegetationZoneLayers.R`
-`polygonize_SpatRast()`: polygonize the rasters 
-`Trans_Intersection()`: calculates percentage of intersection over transect
-
-  2. `function_Make_TransectLayers.R`
-`makeTransect()`: produce transects that are perpendicular to two reference lines
- 
-  3. `function_called_by_main_script.R`
-includes the functions called by Spatial_Work_Flow_cleanup.R for spatial analysis or generating plots
