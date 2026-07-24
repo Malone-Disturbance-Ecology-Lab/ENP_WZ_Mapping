@@ -2,14 +2,11 @@
 # Author: Boya Zhang, Sparkle Malone
 
 # Project Overview
-This project uses Landsat optical remote sensing observations to map the land-cover changes of the Southeast Saline Everglades (SESE) coastal wetlands between 1984 to 2024. Land covers were classified into "Vegetation Zone" (VZ, mangroves), "Degradation Zone" (DZ, dead aboveground biomass), and "Transition Zone" (TZ, with optical signature between the VZ and DZ). 
-
-About 1500 point samples were manually classified for each of the eight years out of the 41 years time span (with ~6 years interval) using available high-resolution Google Earth basemap imagery. We used an Machine Learning (ML) approach with spatial and temporal transfer learning techniques for land-cover classification over the past 41 years. 
+As sea levels continue to rise, coastal wetlands are undergoing profound ecological transformations, including freshwater marsh degradation and the inland expansion of saline wetlands. Using the South Florida Everglades as a case study, this project leverages Landsat optical remote sensing observations to characterize land-cover dynamics in the Southeast Saline Everglades (SESE) coastal wetlands from 1984 to 2024. We classified wetland landscapes into three ecological zones along a vegetation-density gradient: the Vegetation Zone (VZ, characterized by dense vegetation), Degradation Zone (DZ, characterized by sparse vegetation), and Transition Zone (TZ, representing intermediate vegetation conditions).
 
 # Part 1 Remote Sensing 
-The results land-cover maps will be used for spatial modelling (Part 2) to track the trend of degradation zone expansion and mangrove transgression.   
+Approximately 1,500 point samples were manually labeled for eight representative years across the 41-year study period (approximately 6-year intervals) using high-resolution Google Earth basemap imagery. We developed a machine learning (ML)-based classification framework that integrates spatial and temporal transfer learning techniques to reconstruct land-cover dynamics over the entire 41-year period. The resulting time-series land-cover maps provide the foundation for subsequent spatial modeling (Part 2), which aims to quantify the expansion of degradation zones and track mangrove transgression in response to long-term environmental changes.  
   
-Note: The scripts pull data using absolute directory on the server. When a script calls a script/function, it uses relative directory. This way allows users to directly run the code.
 
 **Input data**:
 1. Manually classified point samples of eight years (1986, 1994, 1999, 2003, 2009, 2013, 2017, and 2023) in the format of shapefile
@@ -29,7 +26,7 @@ Step 4 (`04_Spatial_Transfer_for_GE_year_maps.ipynb`, `04_Temporal_Transfer_for_
 Step 5 (`05_Roy_Temporal&Spatial_Transferfor_non-GE_years_L5_1984-2003.ipynb`, `05_Roy_Temporal&Spatial_Transferfor_non-GE_years_L7&8_2004-2023.ipynb`): Emulation process to generate land cover maps for the past 41 years.
 Step 6 (`06_Evaluation_with_Independent_Point_Samples.ipynb`, `06_Illustration_of_Time_Series.ipynb`): Evaluate products for selecting optimal change detection threshold & Plot time series maps.
 
-**Producing Figures and Tables **
+** Figures and Tables **
 Figure 1 (`Fig1_Generating_time_line_for_methodology.ipynb`, `Figure1_Conceputal_Framework_plots.ipynb`)
 Figure 3 (`Fig3_Spatial_analysis_sa_subregions.ipynb`, `Fig3_Spatial_analysis_wl_subregions.ipynb`, `Fig3_time_trend_of_env_variables.ipynb`)
 Figure 8 (`Fig8_Projection_with_rate.ipynb`)
