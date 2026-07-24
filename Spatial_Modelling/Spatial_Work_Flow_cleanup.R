@@ -27,7 +27,7 @@ library(Matrix)
 library(prettymapr)  # Needed for basemap tiles
 library(stats)
 
-### Section 1 - Setting up and initial analysis ####
+### Section 1 - Setting up ####
 get_directory <- function() {
   args <- commandArgs(trailingOnly = FALSE)
   file <- "--file="
@@ -81,7 +81,7 @@ ENP.transects <- ENP.transects %>%
   ) %>%
   dplyr::select(-centroid)  # remove if centroid is not needed
 
-### Section 2.2 - plot time series of land cover change ###
+### Section 2.2 - plot time series of land cover change for figures in the manuscript (Fig. 5 and Fig. 8) ###
 plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE/",
                             "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series.tif", NULL, 20, 105,2014)
 
@@ -147,8 +147,7 @@ ggplot() +
     x = "Easting",
     y = "Northing"
   )
-#################### Section 4. Rates calculation #####################################
-#### 4.1 calculate rates for DZ and VZ
+#################### Section 4. Calculate transect-level change rates for DZ and VZ (Results section) #####################################
 temp <- summary_data_df %>%
   arrange(ID, time) %>%
   group_by(ID) %>%
@@ -183,7 +182,6 @@ output_path <- "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/t
 st_write(rate_results, output_path, delete_layer = TRUE)
 #plot_and_save_transects(rate_results, connection_line, subset_transects_utm, filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/transects.tiff")
 
-#### 4.2 Calculate regional rates for DZ and VZ ######
 result <- plot_rates(rate_results, length_col = "length_change_Int2")
 rescaled_transects <- result$transects
 connection_line <- result$connection_line
@@ -193,9 +191,9 @@ rescaled_vz <- result_vz$transects
 calculate_length_change_averages(rate_results, "length_change_Int2", custom_range = c(27, 37))
 calculate_length_change_averages(rate_results, "length_change_Int1", custom_range = c(27, 37))
  
-####Section 5 - Generating interior & exterior boundary of WZ shift 1984-2024######
+####Section 5 - Generating interior boundary of DZ shift (Results section) ######
 
-# Section 5.1 Generating interior boundary shift line shapefiles
+# Section 5.1 Calculate DZ interior boundary shift rates
 #load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
 load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
 
@@ -233,26 +231,7 @@ line_sf <- calculate_signed_distance(
 
 line_sf$annual_rate_m <- line_sf$signed_distance_m / 40
 
-# Section 5.2 Generating exterior boundary shift line shapefiles
-south_1984 <- south_results %>% filter(Year == 1984)
-south_2024 <- south_results %>% filter(Year == 2024)
-south_1984_clean <- south_1984 %>% filter(!is.na(X) & !is.na(Y))
-south_2024_clean <- south_2024 %>% filter(!is.na(X) & !is.na(Y))
-sf_1984_s <- st_as_sf(south_1984_clean, coords = c("X", "Y"), crs = 32617)
-sf_2024_s <- st_as_sf(south_2024_clean, coords = c("X", "Y"), crs = 32617)
-sf_1984_s$Polygon_ID <- as.integer(sf_1984_s$Polygon_ID)
-sf_2024_s$Polygon_ID <- as.integer(sf_2024_s$Polygon_ID)
-line_sf_s <- calculate_signed_distance(
-  sf_1984 = sf_1984_s,
-  #sf_2024 = sf_2024,
-  sf_2024 = sf_2024_s,
-  output_dir = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/",
-  filename = "south_interior.shp"
-)
-
-line_sf_s$annual_rate_m <- line_sf_s$signed_distance_m / 40
-
-##### 5.2 calculate distance to coast ###
+##### 5.2 Calculate distance to coast ###
 ENP.transects_utm <- transects_in_polygon %>%
   st_transform(32617)
 
@@ -310,7 +289,7 @@ mean_distance <- mean(
 
 print(mean_distance)
 
-###################### Section 6 - processing salinity data ###########
+###################### Section 6 - processing salinity data (Fig. 7) ###########
 ### Section 6.1 read in the salinity data
 salinity_data <- read.csv("/Volumes/MaloneLab/Research/Whitezone/Hydro_Salinity/Salinity/salinity_annual_avg_full.csv")
 selected_sites <- c(
@@ -545,43 +524,6 @@ rescaled_coords_vz <- rescaled_coords_vz %>%
       st_drop_geometry(),                     # drop geometry but keep attributes
     by = "row_id"
   )
-
-# transect_plot_vz <- ggplot() +
-#   geom_path(data = rescaled_coords_vz, aes(X, Y, group = ID, color = correlation), size = 3) +
-#   geom_sf(data = connection_line, color = "black", size = 2) +
-#   geom_sf(data = subset_transects_utm, color = "black", linewidth = 3, linetype = "11") +
-#   scale_color_gradientn(
-#     #colors = c("#7f3f00", "#d9d9d9", "#33a354"),  # negative → neutral → positive (green)
-#     colors = c("#c6dbef", "#6baed6", "#08519c"),
-#     values = rescale(c(
-#       min(rescaled_coords_vz$correlation, na.rm = TRUE),
-#       0,
-#       max(rescaled_coords_vz$correlation, na.rm = TRUE)
-#     )),
-#     na.value = "gray",
-#     name = "Correlation"
-#   ) +
-#   coord_sf(datum = NA) +
-#   theme_minimal() +
-#   theme(
-#     panel.grid = element_blank(),
-#     axis.text = element_blank(),
-#     axis.title = element_blank(),
-#     axis.ticks = element_blank(),
-#     legend.title = element_text(size = 18, family = "Times"),
-#     legend.text = element_text(size = 18, family = "Times"),
-#     legend.key.height = unit(1.2, "cm"),
-#     legend.key.width = unit(0.5, "cm"),
-#     legend.position = "bottom"  # move legend to bottom
-#   ) +
-#   guides(
-#     color = guide_colorbar(
-#       direction = "horizontal",  # horizontal legend
-#       title.position = "top",    # title above the bar
-#       barwidth = 15,             # width of the color bar
-#       barheight = 1              # height of the color bar
-#     )
-#   )
 
 transect_plot_vz <- ggplot() +
   geom_path(
