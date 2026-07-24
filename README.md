@@ -25,14 +25,24 @@ GEE code collects time series of optical observations. The Python jupyter notebo
 
 To reproduce the results, one need to follow the six-step procedure. The order of steps were described as below.
 
-
+**Main Workflow**
 Step 1 (`01_Generating_pixels_for_GEE.ipynb`): Generating shapefile for GEE to extract LS values.
 Step 2 (`02_GEE_multi_year_median_extraction.rtf`, `02_GEE_single_year_median_extraction.rtf`): GEE code to extract annual median values of LS data.
 Step 3 (`03_Sensitivity_analysis_for_VZ_threshold.ipynb`): Sensitivity analysis for selecting the best VZ threshold.
 Step 4 (`04_Spatial_Transfer_for_GE_year_maps.ipynb`, `04_Temporal_Transfer_for_GE_years_and_Verification.ipynb`): Using the GE years to test spatial and temporal transfer learning.
-Step 5 (`05_Temporal&Spatial_Transferfor_non-GE_years_L5_1984-2003.ipynb`, `05_Temporal&Spatial_Transferfor_non-GE_years_L7&8_2004-2023.ipynb`): Emulation process to generate land cover maps for the past 41 years.
+Step 5 (`05_Roy_Temporal&Spatial_Transferfor_non-GE_years_L5_1984-2003.ipynb`, `05_Roy_Temporal&Spatial_Transferfor_non-GE_years_L7&8_2004-2023.ipynb`): Emulation process to generate land cover maps for the past 41 years.
 Step 6 (`06_Evaluation_with_Independent_Point_Samples.ipynb`, `06_Illustration_of_Time_Series.ipynb`): Evaluate products for selecting optimal change detection threshold & Plot time series maps.
 
+**Producing Figures and Tables **
+Figure 1 (`Fig1_Generating_time_line_for_methodology.ipynb`, `Figure1_Conceputal_Framework_plots.ipynb`)
+Figure 3 (`Fig3_Spatial_analysis_sa_subregions.ipynb`, `Fig3_Spatial_analysis_wl_subregions.ipynb`, `Fig3_time_trend_of_env_variables.ipynb`)
+Figure 8 (`Fig8_Projection_with_rate.ipynb`)
+Figure S1 (`FigS1_CERP_analysis.ipynb`)
+Figure S3 (`FigS3_Validation_with_sawgrass_proof_of_concept.ipynb`)
+Figure S5 (`FigS5_Validation_MODIS_LAI.ipynb`)
+Figure S6 (`FigS6_Landsat_signature_violin.ipynb`)
+Note S4 (`Response_Directional_Analysis_of_VZ.ipynb`)
+Table S3 (`TableS3_cross_validation&temporal_transfer_accuracy.ipynb`)
 
 The final output of time series raster (Change detection threshold 0f 0.6 with Closest GE years) is output for spatial modelling.
 
