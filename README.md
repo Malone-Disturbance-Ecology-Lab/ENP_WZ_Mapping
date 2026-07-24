@@ -3,21 +3,18 @@
 
 # Part 1 Remote Sensing 
 **Project Overview**: 
-This project uses Landsat optical remote sensing observations to map the land-cover changes of the Southeast Saline Everglades (SESE) coastal wetlands between 1984 to 2024. Land covers were classified into "Vegetation Zone" (VZ, mangroves), "Degradation Zone" (DZ, dead aboveground biomass with exposed marl), and "Transition Zone" (TZ, with optical signature between the VZ and DZ). 
+This project uses Landsat optical remote sensing observations to map the land-cover changes of the Southeast Saline Everglades (SESE) coastal wetlands between 1984 to 2024. Land covers were classified into "Vegetation Zone" (VZ, mangroves), "Degradation Zone" (DZ, dead aboveground biomass), and "Transition Zone" (TZ, with optical signature between the VZ and DZ). 
 
 
-About 1500 point samples were manually classified for each of the eight years out of the 41 years time span (with ~6 years interval) using available high-resolution Google Earth basemap imagery. We used an Machine Learning (ML) approach to spatially and temporally for classification for the SESE for the past 40 years. 
+About 1500 point samples were manually classified for each of the eight years out of the 41 years time span (with ~6 years interval) using available high-resolution Google Earth basemap imagery. We used an Machine Learning (ML) approach with spatial and temporal transfer learning techniques for land-cover classification over the past 41 years. 
 
-The results land-cover maps will be used for spatial modelling (next part) to track the trend of white zone expansion and mangrove encroachment.   
+The results land-cover maps will be used for spatial modelling (Part 2) to track the trend of degradation zone expansion and mangrove transgression.   
   
-Note: The scripts pull data using absolute directory on the server. When a script calls another script/function, it uses relative directory. This way allows users to directly run the code.
+Note: The scripts pull data using absolute directory on the server. When a script calls a script/function, it uses relative directory. This way allows users to directly run the code.
 
 **Input data**:
 1. Manually classified point samples of eight years (1986, 1994, 1999, 2003, 2009, 2013, 2017, and 2023) in the format of shapefile
 2. Optical observations were obtained from Google Earth Engine (GEE), and the script was available in this repo
-
-These data are stored on the server: /Volumes/Malonelab/Research/Whitezone/Data/KML/
-
 
 **Script Structure**:
 This repository includes both Google Earth Engine (GEE) and Python jupyter notebook code.
@@ -48,11 +45,11 @@ The final output of time series rasters are output for spatial modelling. The ra
 
 # Part 2 Spatial Modelling
 
-Part 2 uses R scripts to define transect line, and get land cover info by intersecting with the 41 years of classification maps. Correlation between DZ proportion and salinity/wl was calculated at the transect level to infer driver mechanisms. 
+Part 2 uses R scripts to define transect line, and get transect-level land cover info by intersecting with the 41 years of classification rasters. Transect and regional level of DZ and VZ changes are caculated, along with shift of northern boundary of DZ for numbers in the Results section. Correlation between DZ proportion and salinity was calculated at the transect level for Figure 7.  
 
 **Input data**:
-Raster files of land cover classification time series produced by Step 1
-Boundary lines, including coast line and inland line (i.e., trailing and leading edges). 
+Rasters of land cover classification time series produced by Step 1
+SESE boundary shapefile
 
 **Main Workflow**:
 
@@ -77,4 +74,4 @@ The entire work flow can be run by `Spatial_Work_Flow_cleanup.R`. This master sc
     6.4 - Plot DZ correlation with salinity based on rates
     6.5 - Plot VZ correlation with salinity based on rates
 
-
+All the functions needed by `Spatial_Work_Flow_cleanup.R` is stored in 'function_called_by_main_script.R'
