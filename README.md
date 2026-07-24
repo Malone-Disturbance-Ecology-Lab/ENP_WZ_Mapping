@@ -3,7 +3,7 @@
 
 # Part 1 Remote Sensing 
 **Project Overview**: 
-This project uses Landsat optical remote sensing observations to map the land-cover changes of the Southeast Saline Everglades (SESE) coastal wetlands between 1984 to 2024. Land covers were classified into "Vegetation Zone" (VZ, mangroves), "White Zone" (WZ, dead aboveground biomass with exposed marl), and "Transition Zone" (TZ, with optical signature between the VZ and WZ). 
+This project uses Landsat optical remote sensing observations to map the land-cover changes of the Southeast Saline Everglades (SESE) coastal wetlands between 1984 to 2024. Land covers were classified into "Vegetation Zone" (VZ, mangroves), "Degradation Zone" (DZ, dead aboveground biomass with exposed marl), and "Transition Zone" (TZ, with optical signature between the VZ and DZ). 
 
 
 About 1500 point samples were manually classified for each of the eight years out of the 41 years time span (with ~6 years interval) using available high-resolution Google Earth basemap imagery. We used an Machine Learning (ML) approach to spatially and temporally for classification for the SESE for the past 40 years. 
@@ -48,7 +48,7 @@ The final output of time series rasters are output for spatial modelling. The ra
 
 # Part 2 Spatial Modelling
 
-Part 2 uses R scripts to define transect line, and get land cover info by intersecting with the 41 years of classification maps. Correlation between WZ proportion and salinity/wl was calculated at the transect level to infer driver mechanisms. 
+Part 2 uses R scripts to define transect line, and get land cover info by intersecting with the 41 years of classification maps. Correlation between DZ proportion and salinity/wl was calculated at the transect level to infer driver mechanisms. 
 
 **Input data**:
 Raster files of land cover classification time series produced by Step 1
