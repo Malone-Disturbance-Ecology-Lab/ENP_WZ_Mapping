@@ -44,29 +44,33 @@ Figure S6 (`FigS6_Landsat_signature_violin.ipynb`)
 Note S4 (`Response_Directional_Analysis_of_VZ.ipynb`)
 Table S3 (`TableS3_cross_validation&temporal_transfer_accuracy.ipynb`)
 
-The final output of time series raster (Change detection threshold 0f 0.6 with Closest GE years) is output for spatial modelling.
+The final output of time series rasters are output for spatial modelling. The rasters have been published on Environmental Data Initiative (EDI). https://doi.org/10.6073/pasta/ab0c9bb8d372251785aeb3e55a62377e.
 
 # Part 2 Spatial Modelling
 
 Part 2 uses R scripts to define transect line, and get land cover info by intersecting with the 41 years of classification maps. Correlation between WZ proportion and salinity/wl was calculated at the transect level to infer driver mechanisms. 
 
-The entire work flow (Spatial_Work_Flow.R) was divided into three sub work flows (Spatial_Analysis_step*.R):
-Step 1 (Spatial_Analysis_step1.R) makes buffer of transects to intersect with center points of pixels, generates the changes of leading and trailing edges between 1984 and 2024 to calculate WZ expansion/retraction and rates. 
-
-Step 2 (Spatial_Analysis_step2.R) loads the proportion of each land-cover class in time for all the transects (resulting from Step 1), then make figure plots, including time series of total area changes (Figure 7 in the Manuscript). Step 2 reads all the salinity and wl files to compile them as annual average and then calculate transect-based correlation between WZ proportion and salinity/wl respectively, and make interactive plots in R studio. 
-
-Step 3 (Spatial_Analysis_step3.R) uses the correlation results from step 2 to model driver mechanism of WZ expansion.
-
 **Input data**:
 Raster files of land cover classification time series produced by Step 1
 Boundary lines, including coast line and inland line (i.e., trailing and leading edges). 
 
-**File Structure**:
-Flow_Transect_Analysis.R is the work flow that calls all the functions
+**Function Scripts**:
+
 Functions:
-  1. function_MakeVegetationZoneLayers.R polygonize the rasters
-  2. function_Make_TransectLayers.R  make transects
-  3. Spatial_Work_Flow.R analyze the transects and to produce plots (Spatial_Work_Flow is the entire flow, which is splitted into three sub scripts
-      including Spatial_Analysis_step1.R, Spatial_Analysis_step2.R, Spatial_Analysis_step3.R
-  4. function_called_by_main_script.R includes the functions called by Spatial_Work_Flow.R for spatial analysis or generating plots
+  1. `function_MakeVegetationZoneLayers.R`
+`polygonize_SpatRast()`: polygonize the rasters 
+`Trans_Intersection()`: calculates percentage of intersection over transect
+
+  2. `function_Make_TransectLayers.R`
+`makeTransect()`: produce transects that are perpendicular to two reference lines
+ 
+  3. `function_called_by_main_script.R`
+includes the functions called by Spatial_Work_Flow_cleanup.R for spatial analysis or generating plots
+
+**Main Workflow**:
+
+The entire work flow can be run by `Spatial_Work_Flow_cleanup.R`. This master script:
+Makes buffer of transects to intersect with center points of pixels, generates the changes of leading and trailing edges between 1984 and 2024 to calculate WZ expansion/retraction and rates. 
+Loads the proportion of each land-cover class in time for all the transects (resulting from Step 1), then make figure plots, including time series of total area changes (Figure 7 in the Manuscript). Step 2 reads all the salinity and wl files to compile them as annual average and then calculate transect-based correlation between WZ proportion and salinity/wl respectively, and make interactive plots in R studio. 
+Uses the correlation results from Step 2 to model driver mechanism of WZ expansion.
 
