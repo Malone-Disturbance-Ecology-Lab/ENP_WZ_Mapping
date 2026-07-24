@@ -1449,7 +1449,16 @@ calculate_distance_join <- function(correlation_salinity_df, data, ENP_transects
   
   return(correlation_salinity_df)
 }
-
+### Calculate distance between northernmost point and transect-level southernmost point ##
+get_south_point <- function(line) {
+  
+  coords <- st_coordinates(line)
+  
+  # minimum northing = southern-most
+  south_coord <- coords[which.min(coords[,2]), 1:2]
+  
+  return(st_point(south_coord))
+}
 ### plot correlation maps
 plot_correlation_map <- function(data, point_of_interest, ENP_transects, station_of_interest, color_scale) {
   leaflet(ENP_transects) %>%
