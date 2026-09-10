@@ -445,7 +445,7 @@ transect_plot_dz <- ggplot() +
     )
 
 ggsave(
-  filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/rescaled_dz_plot_roy.tif",
+  filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/rescaled_dz_plot_roy_old.tif",
   plot = transect_plot_dz,   # use the named plot object
   device = "tiff",
   width = 10,
@@ -454,6 +454,16 @@ ggsave(
   bg = "white"            # ensures white background
 )
 
+# Export transect-level DZ correlation data
+dz_output <- rescaled_transects_colored %>%
+  st_drop_geometry() %>%
+  dplyr::select(ID, correlation, everything())
+
+write.csv(
+  dz_output,
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/dz_correlation_old.csv",
+  row.names = FALSE
+)
 ############# Plot the transect land-cover data ######
 # Make sure year is numeric
 summary_data <- summary_data %>%
