@@ -1526,9 +1526,7 @@ compute_detrended_correlations_by_region <- function(
     east_sites,
     proportion_col) {
   
-  # ------------------------------------------------------------
-  # 1. Calculate annual mean salinity for each subregion
-  # ------------------------------------------------------------
+  # 1. Annual mean salinity by subregion
   salinity_region <- all_annual_averages %>%
     mutate(
       region = case_when(
@@ -1545,19 +1543,18 @@ compute_detrended_correlations_by_region <- function(
       .groups = "drop"
     )
   
-  # ------------------------------------------------------------
-  # 2. Assign each transect to a subregion
-  # Based on your current boundaries: 37 and 61
-  # ------------------------------------------------------------
+  # 2. Correct transect-region assignment
   landcover <- summary_data %>%
     mutate(
       region = case_when(
-        ID < 37 ~ "West",
-        ID >= 37 & ID <= 61 ~ "Central",
-        ID > 61 ~ "East"
+        ID >= 1  & ID <= 36  ~ "East",
+        ID >= 37 & ID <= 61  ~ "Central",
+        ID >= 62 & ID <= 100 ~ "West",
+        TRUE ~ NA_character_
       ),
       year = as.numeric(time)
     ) %>%
+    filter(!is.na(region)) %>%
     dplyr::select(
       ID,
       year,
@@ -1565,49 +1562,44 @@ compute_detrended_correlations_by_region <- function(
       landcover = all_of(proportion_col)
     )
   
-  # ------------------------------------------------------------
-  # 3. Join land-cover and salinity by region + year
-  # ------------------------------------------------------------
+  # 3. Match land cover with regional salinity by year
   combined <- landcover %>%
     left_join(
       salinity_region,
       by = c("region", "year")
     ) %>%
     filter(
-      !is.na(landcover),
-      !is.na(salinity)
+      is.finite(landcover),
+      is.finite(salinity),
+      is.finite(year)
     )
   
-  # ------------------------------------------------------------
-  # 4. Detrend salinity and land cover separately for each transect
-  # ------------------------------------------------------------
+  # 4. Detrend both series within each transect
   correlation_results <- combined %>%
     group_by(ID, region) %>%
     group_modify(~ {
       
       df <- .x
       
-      # Need enough observations for trend + correlation
-      if (nrow(df) < 3) {
+      if (nrow(df) < 4 ||
+          length(unique(df$year)) < 4 ||
+          sd(df$landcover) == 0 ||
+          sd(df$salinity) == 0) {
         return(tibble(
           correlation = NA_real_,
           n = nrow(df)
         ))
       }
       
-      # Linear temporal trends
       lm_landcover <- lm(landcover ~ year, data = df)
       lm_salinity  <- lm(salinity ~ year, data = df)
       
-      # Residuals = detrended anomalies
       landcover_detrended <- residuals(lm_landcover)
       salinity_detrended  <- residuals(lm_salinity)
       
-      # Pearson correlation of detrended series
       r <- cor(
         landcover_detrended,
         salinity_detrended,
-        use = "complete.obs",
         method = "pearson"
       )
       

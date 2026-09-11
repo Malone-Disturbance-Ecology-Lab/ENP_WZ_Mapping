@@ -26,7 +26,9 @@ library(lme4)
 library(Matrix)
 library(prettymapr)  # Needed for basemap tiles
 library(stats)
-
+library(glmmTMB)
+library(emmeans)
+library(performance)
 ### Section 1 - Setting up ####
 get_directory <- function() {
   args <- commandArgs(trailingOnly = FALSE)
@@ -194,42 +196,8 @@ calculate_length_change_averages(rate_results, "length_change_Int1", custom_rang
 ####Section 5 - Generating interior boundary of DZ shift (Results section) ######
 
 # Section 5.1 Calculate DZ interior boundary shift rates
-#load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point.RData")
+
 load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
-
-#load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy_VZ.RData")
-#load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/south_point_Roy.RData")
-#final_results <- south_results
-
-#dz_north <- load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
-points_1984 <- final_results %>% filter(Year == 1984)
-points_1994 <- final_results %>% filter(Year == 1994)
-points_2024 <- final_results %>% filter(Year == 2024)
-
-points_1984_clean <- points_1984 %>% filter(!is.na(X) & !is.na(Y))
-points_2024_clean <- points_2024 %>% filter(!is.na(X) & !is.na(Y))
-points_1994_clean <- points_1994 %>% filter(!is.na(X) & !is.na(Y))
-
-sf_1984 <- st_as_sf(points_1984_clean, coords = c("X", "Y"), crs = 32617)
-sf_2024 <- st_as_sf(points_2024_clean, coords = c("X", "Y"), crs = 32617)
-sf_1994 <- st_as_sf(points_1994_clean, coords = c("X", "Y"), crs = 32617)
-
-st_write(sf_1984, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_1984_Roy_VZ.shp", delete_layer = TRUE)
-st_write(sf_2024, "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/points_2024_Roy_VZ.shp", delete_layer = TRUE)
-
-sf_1994$Polygon_ID <- as.integer(sf_1994$Polygon_ID)
-sf_1984$Polygon_ID <- as.integer(sf_1984$Polygon_ID)
-sf_2024$Polygon_ID <- as.integer(sf_2024$Polygon_ID)
-
-line_sf <- calculate_signed_distance(
-  sf_1984 = sf_1984,
-  #sf_2024 = sf_2024,
-  sf_2024 = sf_2024,
-  output_dir = "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/",
-  filename = "north_interior_Roy_DZ.shp"
-)
-
-line_sf$annual_rate_m <- line_sf$signed_distance_m / 40
 
 ##### 5.2 Calculate distance to coast ###
 ENP.transects_utm <- transects_in_polygon %>%
@@ -237,58 +205,6 @@ ENP.transects_utm <- transects_in_polygon %>%
 
 # points_1984_clean <- points_1984 %>%
 #   filter(!is.na(X), !is.na(Y))
-
-points_1984_clean <- st_as_sf(
-  points_1984_clean,
-  coords = c("X", "Y"),
-  crs = 32617
-)
-
-points_2024_clean <- st_as_sf(
-  points_2024_clean,
-  coords = c("X", "Y"),
-  crs = 32617
-)
-
-## get the southernmost point for each trasect ####
-south_transects <- st_sf(
-  ID = ENP.transects_utm$ID,
-  geometry = st_sfc(
-    lapply(
-      st_geometry(ENP.transects_utm),
-      get_south_point
-    ),
-    crs = st_crs(ENP.transects_utm)
-  )
-)
-
-# Match Polygon_ID with transect ID
-idx <- match(
-  points_sf$Polygon_ID,
-  south_transects$ID
-)
-
-valid <- !is.na(idx)
-points_1984_clean <- points_1984_clean[valid, ]
-points_2024_clean <- points_2024_clean[valid, ]
-south_geom <- st_geometry(south_transects)[idx[valid]]
-
-points_sf$distance_south_m <- as.numeric(
-  st_distance(
-    points_2024_clean,
-    #points_1984_clean,
-    south_geom,
-    by_element = TRUE
-  )
-)
-
-mean_distance <- mean(
-  points_sf$distance_south_m,
-  na.rm = TRUE
-)
-
-print(mean_distance)
-
 ###################### Section 6 - processing salinity data (Fig. 7) ###########
 ### Section 6.1 read in the salinity data
 salinity_data <- read.csv("/Volumes/MaloneLab/Research/Whitezone/Hydro_Salinity/Salinity/salinity_annual_avg_full.csv")
@@ -448,7 +364,7 @@ transect_plot_dz <- ggplot() +
   )
 
 ggsave(
-  filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/rescaled_dz_plot_roy.tif",
+  filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/rescaled_dz_plot_roy_detrended.tif",
   plot = transect_plot_dz,   # use the named plot object
   device = "tiff",
   width = 10,
@@ -600,7 +516,7 @@ transect_plot_vz <- ggplot() +
     )
   )
 ggsave(
-  filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/rescaled_vz_plot_roy.tif",
+  filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/rescaled_vz_plot_roy_detrended.tif",
   plot = transect_plot_vz,   # use the named plot object
   device = "tiff",
   width = 10,
@@ -609,31 +525,104 @@ ggsave(
   bg = "white"            # ensures white background
 )
 
+# View all detrended VZ correlation results
+print(correlation_salinity_vz_detrended)
+
+# Summary statistics
+summary(correlation_salinity_vz_detrended$correlation)
+
+# Save to CSV
+write.csv(
+  correlation_salinity_vz_detrended,
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_detrended_correlation.csv",
+  row.names = FALSE
+)
+
 
 ########## Statistical test on subregional differences of correlation ######
-# 1. Remove rows with duplicated IDs (remove the first occurrence)
-rescaled_coords_clean <- rescaled_coords_dz %>%
-  group_by(ID) %>%
-  mutate(row_number = row_number()) %>%
-  filter(row_number != 1) %>%  # remove the first row for each ID
-  ungroup() %>%
-  dplyr::select(-row_number)
+# Annual mean salinity by region
+salinity_region <- salinity_data %>%
+  mutate(region=case_when(
+    site %in% west ~ "West",
+    site %in% central ~ "Central",
+    site %in% east ~ "East",
+    TRUE ~ NA_character_
+  )) %>%
+  filter(!is.na(region)) %>%
+  group_by(region,year) %>%
+  summarise(salinity=mean(annual_avg,na.rm=TRUE),.groups="drop")
 
-# 2. Create grouping variable based on ID ranges
-rescaled_coords_clean <- rescaled_coords_clean %>%
-  mutate(group = case_when(
-    ID < 37 ~ "<37",
-    ID >= 37 & ID <= 61 ~ "37-61",
-    ID > 61 ~ ">61"
-  ))
+# Prepare mixed-model dataset
+mixed_data <- summary_data %>%
+  mutate(
+    region=case_when(
+      ID<=36 ~ "East",
+      ID<=61 ~ "Central",
+      ID<=100 ~ "West",
+      TRUE ~ NA_character_
+    ),
+    year=as.numeric(time)
+  ) %>%
+  filter(!is.na(region)) %>%
+  left_join(salinity_region,by=c("region","year")) %>%
+  filter(!is.na(salinity)) %>%
+  mutate(
+    ID=factor(ID),
+    region=factor(region,levels=c("West","Central","East")),
+    year_c=year-mean(year,na.rm=TRUE),
+    salinity_c=salinity-mean(salinity,na.rm=TRUE),
+    RegionYear=interaction(region,year,drop=TRUE),
+    year_f=factor(year,levels=sort(unique(year)))
+  )
 
-# Check the grouping
-table(rescaled_coords_clean$group)
+# Check data
+table(mixed_data$region)
+range(mixed_data$year)
+summary(mixed_data$salinity)
 
-# 3. Perform ANOVA to test for differences in correlation among groups
-anova_result <- aov(correlation ~ group, data = rescaled_coords_clean)
-summary(anova_result)
+# DZ mixed model: year trend + hierarchy + AR(1)
+model_dz <- glmmTMB(
+  proportion_Int2 ~ salinity_c*region + year_c +
+    (1|ID) + (1|RegionYear) + ar1(year_f+0|ID),
+  data=mixed_data %>% filter(!is.na(proportion_Int2)),
+  family=gaussian()
+)
 
-# 4. Post-hoc pairwise comparisons (Tukey HSD)
-tukey_result <- TukeyHSD(anova_result)
-print(tukey_result)
+# Regional salinity slopes and pairwise comparisons
+dz_slopes <- emtrends(model_dz,~region,var="salinity_c")
+dz_pairs <- pairs(dz_slopes,adjust="tukey")
+
+# Show results
+summary(model_dz)
+joint_tests(model_dz)
+summary(dz_slopes,infer=c(TRUE,TRUE))
+dz_pairs
+VarCorr(model_dz)
+
+# Save all results
+sink("/Users/bz294/Documents/WhiteZone/Figure/Backup/DZ_mixed_model_results.txt")
+cat("=== DZ MIXED-EFFECTS MODEL ===\n\n")
+cat("MODEL SUMMARY\n"); print(summary(model_dz))
+cat("\nFIXED-EFFECT TESTS\n"); print(joint_tests(model_dz))
+cat("\nREGIONAL SALINITY SLOPES\n"); print(summary(dz_slopes,infer=c(TRUE,TRUE)))
+cat("\nPAIRWISE SLOPE COMPARISONS\n"); print(dz_pairs)
+cat("\nVARIANCE COMPONENTS\n"); print(VarCorr(model_dz))
+sink()
+
+########################### VZ ############################################
+# VZ mixed-effects model: year trend + hierarchy + AR(1)
+model_vz2 <- glmmTMB(
+  proportion_Int1 ~ salinity_c*region + year_c*region +
+    (1|ID) + (1|RegionYear) + ar1(year_f+0|ID),
+  data=mixed_data %>% filter(!is.na(proportion_Int1)),
+  family=gaussian()
+)
+
+summary(model_vz2)
+joint_tests(model_vz2)
+
+vz2_slopes <- emtrends(model_vz2,~region,var="salinity_c")
+summary(vz2_slopes,infer=c(TRUE,TRUE))
+pairs(vz2_slopes,adjust="tukey")
+
+#
