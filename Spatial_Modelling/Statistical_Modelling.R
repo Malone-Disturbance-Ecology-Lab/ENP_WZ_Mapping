@@ -581,48 +581,271 @@ range(mixed_data$year)
 summary(mixed_data$salinity)
 
 # DZ mixed model: year trend + hierarchy + AR(1)
-model_dz <- glmmTMB(
-  proportion_Int2 ~ salinity_c*region + year_c +
-    (1|ID) + (1|RegionYear) + ar1(year_f+0|ID),
-  data=mixed_data %>% filter(!is.na(proportion_Int2)),
-  family=gaussian()
+### dz 2 ###
+model_dz2 <- glmmTMB(
+  proportion_Int2 ~ salinity_c * region + year_c * region +
+    (1 | ID) +
+    (1 | RegionYear) +
+    ar1(year_f + 0 | ID),
+  data = mixed_data %>% filter(!is.na(proportion_Int2)),
+  family = gaussian()
 )
 
-# Regional salinity slopes and pairwise comparisons
-dz_slopes <- emtrends(model_dz,~region,var="salinity_c")
-dz_pairs <- pairs(dz_slopes,adjust="tukey")
+summary(model_dz2)
+joint_tests(model_dz2)
 
-# Show results
-summary(model_dz)
-joint_tests(model_dz)
-summary(dz_slopes,infer=c(TRUE,TRUE))
-dz_pairs
-VarCorr(model_dz)
+# Salinity slopes
+dz2_salinity <- emtrends(model_dz2, ~ region, var = "salinity_c")
+summary(dz2_salinity, infer = c(TRUE, TRUE))
+dz2_salinity_pairs <- pairs(dz2_salinity, adjust = "tukey")
+dz2_salinity_pairs
+
+# Year slopes
+dz2_year <- emtrends(model_dz2, ~ region, var = "year_c")
+summary(dz2_year, infer = c(TRUE, TRUE))
+dz2_year_pairs <- pairs(dz2_year, adjust = "tukey")
+dz2_year_pairs
 
 # Save all results
 sink("/Users/bz294/Documents/WhiteZone/Figure/Backup/DZ_mixed_model_results.txt")
+
 cat("=== DZ MIXED-EFFECTS MODEL ===\n\n")
-cat("MODEL SUMMARY\n"); print(summary(model_dz))
-cat("\nFIXED-EFFECT TESTS\n"); print(joint_tests(model_dz))
-cat("\nREGIONAL SALINITY SLOPES\n"); print(summary(dz_slopes,infer=c(TRUE,TRUE)))
-cat("\nPAIRWISE SLOPE COMPARISONS\n"); print(dz_pairs)
-cat("\nVARIANCE COMPONENTS\n"); print(VarCorr(model_dz))
+
+cat("MODEL SUMMARY\n")
+print(summary(model_dz2))
+
+cat("\nFIXED-EFFECT TESTS\n")
+print(joint_tests(model_dz2))
+
+cat("\nREGIONAL SALINITY SLOPES\n")
+print(summary(dz2_salinity, infer = c(TRUE, TRUE)))
+
+cat("\nPAIRWISE SALINITY-SLOPE COMPARISONS\n")
+print(dz2_salinity_pairs)
+
+cat("\nREGIONAL YEAR SLOPES\n")
+print(summary(dz2_year, infer = c(TRUE, TRUE)))
+
+cat("\nPAIRWISE YEAR-SLOPE COMPARISONS\n")
+print(dz2_year_pairs)
+
+cat("\nVARIANCE COMPONENTS\n")
+print(VarCorr(model_dz2))
+
+cat("\nMODEL FIT\n")
+cat("AIC:", AIC(model_dz2), "\n")
+cat("BIC:", BIC(model_dz2), "\n")
+cat("logLik:", as.numeric(logLik(model_dz2)), "\n")
+
 sink()
 
+
 ########################### VZ ############################################
-# VZ mixed-effects model: year trend + hierarchy + AR(1)
+# Final VZ mixed-effects model
 model_vz2 <- glmmTMB(
-  proportion_Int1 ~ salinity_c*region + year_c*region +
-    (1|ID) + (1|RegionYear) + ar1(year_f+0|ID),
-  data=mixed_data %>% filter(!is.na(proportion_Int1)),
-  family=gaussian()
+  proportion_Int1 ~ salinity_c * region + year_c * region +
+    (1 | ID) +
+    (1 | RegionYear) +
+    ar1(year_f + 0 | ID),
+  data = mixed_data %>% filter(!is.na(proportion_Int1)),
+  family = gaussian()
 )
 
+# Overall model results
 summary(model_vz2)
 joint_tests(model_vz2)
 
-vz2_slopes <- emtrends(model_vz2,~region,var="salinity_c")
-summary(vz2_slopes,infer=c(TRUE,TRUE))
-pairs(vz2_slopes,adjust="tukey")
+# Regional salinity slopes
+vz2_salinity <- emtrends(model_vz2, ~ region, var = "salinity_c")
+summary(vz2_salinity, infer = c(TRUE, TRUE))
+
+vz2_salinity_pairs <- pairs(vz2_salinity, adjust = "tukey")
+vz2_salinity_pairs
+
+# Regional year slopes
+vz2_year <- emtrends(model_vz2, ~ region, var = "year_c")
+summary(vz2_year, infer = c(TRUE, TRUE))
+
+vz2_year_pairs <- pairs(vz2_year, adjust = "tukey")
+vz2_year_pairs
+
+
+# ============================================================
+# Save all VZ results to TXT
+# ============================================================
+
+sink("/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_mixed_model_results.txt")
+
+cat("=== VZ MIXED-EFFECTS MODEL ===\n\n")
+
+cat("MODEL SUMMARY\n")
+print(summary(model_vz2))
+
+cat("\nFIXED-EFFECT TESTS\n")
+print(joint_tests(model_vz2))
+
+cat("\nREGIONAL SALINITY SLOPES\n")
+print(summary(vz2_salinity, infer = c(TRUE, TRUE)))
+
+cat("\nPAIRWISE SALINITY-SLOPE COMPARISONS\n")
+print(vz2_salinity_pairs)
+
+cat("\nREGIONAL YEAR SLOPES\n")
+print(summary(vz2_year, infer = c(TRUE, TRUE)))
+
+cat("\nPAIRWISE YEAR-SLOPE COMPARISONS\n")
+print(vz2_year_pairs)
+
+cat("\nVARIANCE COMPONENTS\n")
+print(VarCorr(model_vz2))
+
+cat("\nMODEL FIT\n")
+cat("AIC:", AIC(model_vz2), "\n")
+cat("BIC:", BIC(model_vz2), "\n")
+cat("logLik:", as.numeric(logLik(model_vz2)), "\n")
+cat("N:", nobs(model_vz2), "\n")
+
+sink()
+
+############## Last decade vz ########
+# ============================================================
+# 2014–2024 DATA
+# ============================================================
+
+mixed_data_2014_2024 <- mixed_data %>%
+  filter(year >= 2013, year <= 2024) %>%
+  mutate(
+    # Re-center variables using ONLY 2014–2024 data
+    salinity_c = salinity - mean(salinity, na.rm = TRUE),
+    year_c = year - mean(year, na.rm = TRUE),
+    
+    # Rebuild grouping variables for this period
+    RegionYear = interaction(region, year, drop = TRUE),
+    year_f = factor(year, levels = sort(unique(year)))
+  )
+
+# Check
+table(mixed_data_2014_2024$year)
+table(mixed_data_2014_2024$region)
+
+
+# ============================================================
+# VZ MIXED-EFFECTS MODEL: 2014–2024
+# ============================================================
+
+model_vz_2014_2024 <- glmmTMB(
+  proportion_Int1 ~ salinity_c * region + year_c * region +
+    (1 | ID) +
+    (1 | RegionYear) +
+    ar1(year_f + 0 | ID),
+  data = mixed_data_2014_2024 %>%
+    filter(!is.na(proportion_Int1)),
+  family = gaussian()
+)
+
+
+# ============================================================
+# OVERALL MODEL RESULTS
+# ============================================================
+
+summary(model_vz_2014_2024)
+
+joint_tests(model_vz_2014_2024)
+
+
+# ============================================================
+# REGIONAL SALINITY SLOPES
+# ============================================================
+
+vz_2014_salinity <- emtrends(
+  model_vz_2014_2024,
+  ~ region,
+  var = "salinity_c"
+)
+
+summary(
+  vz_2014_salinity,
+  infer = c(TRUE, TRUE)
+)
+
+vz_2014_salinity_pairs <- pairs(
+  vz_2014_salinity,
+  adjust = "tukey"
+)
+
+vz_2014_salinity_pairs
+
+
+# ============================================================
+# REGIONAL YEAR SLOPES
+# ============================================================
+
+vz_2014_year <- emtrends(
+  model_vz_2014_2024,
+  ~ region,
+  var = "year_c"
+)
+
+summary(
+  vz_2014_year,
+  infer = c(TRUE, TRUE)
+)
+
+vz_2014_year_pairs <- pairs(
+  vz_2014_year,
+  adjust = "tukey"
+)
+
+vz_2014_year_pairs
+
+
+# ============================================================
+# SAVE ALL RESULTS
+# ============================================================
+
+sink(
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_mixed_model_results_2014_2024.txt"
+)
+
+cat("=== VZ MIXED-EFFECTS MODEL: 2014–2024 ===\n\n")
+
+cat("MODEL SUMMARY\n")
+print(summary(model_vz_2014_2024))
+
+cat("\nFIXED-EFFECT TESTS\n")
+print(joint_tests(model_vz_2014_2024))
+
+cat("\nREGIONAL SALINITY SLOPES\n")
+print(
+  summary(
+    vz_2014_salinity,
+    infer = c(TRUE, TRUE)
+  )
+)
+
+cat("\nPAIRWISE SALINITY-SLOPE COMPARISONS\n")
+print(vz_2014_salinity_pairs)
+
+cat("\nREGIONAL YEAR SLOPES\n")
+print(
+  summary(
+    vz_2014_year,
+    infer = c(TRUE, TRUE)
+  )
+)
+
+cat("\nPAIRWISE YEAR-SLOPE COMPARISONS\n")
+print(vz_2014_year_pairs)
+
+cat("\nVARIANCE COMPONENTS\n")
+print(VarCorr(model_vz_2014_2024))
+
+cat("\nMODEL FIT\n")
+cat("AIC:", AIC(model_vz_2014_2024), "\n")
+cat("BIC:", BIC(model_vz_2014_2024), "\n")
+cat("logLik:", as.numeric(logLik(model_vz_2014_2024)), "\n")
+cat("N:", nobs(model_vz_2014_2024), "\n")
+
+sink()
 
 #
