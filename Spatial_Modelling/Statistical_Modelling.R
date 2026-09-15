@@ -673,7 +673,7 @@ vz2_year_pairs
 # ============================================================
 # Save all VZ results to TXT
 # ============================================================
-
+a
 sink("/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_mixed_model_results.txt")
 
 cat("=== VZ MIXED-EFFECTS MODEL ===\n\n")

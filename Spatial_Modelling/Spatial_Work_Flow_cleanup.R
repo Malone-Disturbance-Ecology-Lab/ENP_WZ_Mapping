@@ -353,6 +353,11 @@ correlation_salinity_dz <- compute_site_correlations_by_region(
   proportion_col = "proportion_Int2"  # STRING
 )
 
+write.csv(
+  correlation_salinity_dz,
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/DZ_original_correlation.csv",
+  row.names = FALSE
+)
 ##### Section 6.3 Join with the lat and lon info #################
 csv_file <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Salinity/WZ_salinity_sites_latlon.csv"  # replace with your file path
 salinity_summary <- read.csv(csv_file)
@@ -516,6 +521,12 @@ correlation_salinity_vz <- compute_site_correlations_by_region(
   central_sites = central,
   east_sites = east,
   proportion_col = "proportion_Int1"  # STRING
+)
+
+write.csv(
+  correlation_salinity_vz,
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_original_correlation.csv",
+  row.names = FALSE
 )
 
 rescaled_vz_colored <- rescaled_vz %>%
