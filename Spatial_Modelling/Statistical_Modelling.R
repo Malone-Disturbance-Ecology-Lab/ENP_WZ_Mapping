@@ -673,7 +673,7 @@ vz2_year_pairs
 # ============================================================
 # Save all VZ results to TXT
 # ============================================================
-a
+
 sink("/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_mixed_model_results.txt")
 
 cat("=== VZ MIXED-EFFECTS MODEL ===\n\n")
@@ -707,15 +707,16 @@ cat("N:", nobs(model_vz2), "\n")
 
 sink()
 
-############## Last decade vz ########
+############## 2013–2024 VZ ########
+
 # ============================================================
-# 2014–2024 DATA
+# 2013–2024 DATA
 # ============================================================
 
-mixed_data_2014_2024 <- mixed_data %>%
+mixed_data_2013_2024 <- mixed_data %>%
   filter(year >= 2013, year <= 2024) %>%
   mutate(
-    # Re-center variables using ONLY 2014–2024 data
+    # Re-center variables using ONLY 2013–2024 data
     salinity_c = salinity - mean(salinity, na.rm = TRUE),
     year_c = year - mean(year, na.rm = TRUE),
     
@@ -725,20 +726,20 @@ mixed_data_2014_2024 <- mixed_data %>%
   )
 
 # Check
-table(mixed_data_2014_2024$year)
-table(mixed_data_2014_2024$region)
+table(mixed_data_2013_2024$year)
+table(mixed_data_2013_2024$region)
 
 
 # ============================================================
-# VZ MIXED-EFFECTS MODEL: 2014–2024
+# VZ MIXED-EFFECTS MODEL: 2013–2024
 # ============================================================
 
-model_vz_2014_2024 <- glmmTMB(
+model_vz_2013_2024 <- glmmTMB(
   proportion_Int1 ~ salinity_c * region + year_c * region +
     (1 | ID) +
     (1 | RegionYear) +
     ar1(year_f + 0 | ID),
-  data = mixed_data_2014_2024 %>%
+  data = mixed_data_2013_2024 %>%
     filter(!is.na(proportion_Int1)),
   family = gaussian()
 )
@@ -748,55 +749,55 @@ model_vz_2014_2024 <- glmmTMB(
 # OVERALL MODEL RESULTS
 # ============================================================
 
-summary(model_vz_2014_2024)
+summary(model_vz_2013_2024)
 
-joint_tests(model_vz_2014_2024)
+joint_tests(model_vz_2013_2024)
 
 
 # ============================================================
 # REGIONAL SALINITY SLOPES
 # ============================================================
 
-vz_2014_salinity <- emtrends(
-  model_vz_2014_2024,
+vz_2013_salinity <- emtrends(
+  model_vz_2013_2024,
   ~ region,
   var = "salinity_c"
 )
 
 summary(
-  vz_2014_salinity,
+  vz_2013_salinity,
   infer = c(TRUE, TRUE)
 )
 
-vz_2014_salinity_pairs <- pairs(
-  vz_2014_salinity,
+vz_2013_salinity_pairs <- pairs(
+  vz_2013_salinity,
   adjust = "tukey"
 )
 
-vz_2014_salinity_pairs
+vz_2013_salinity_pairs
 
 
 # ============================================================
 # REGIONAL YEAR SLOPES
 # ============================================================
 
-vz_2014_year <- emtrends(
-  model_vz_2014_2024,
+vz_2013_year <- emtrends(
+  model_vz_2013_2024,
   ~ region,
   var = "year_c"
 )
 
 summary(
-  vz_2014_year,
+  vz_2013_year,
   infer = c(TRUE, TRUE)
 )
 
-vz_2014_year_pairs <- pairs(
-  vz_2014_year,
+vz_2013_year_pairs <- pairs(
+  vz_2013_year,
   adjust = "tukey"
 )
 
-vz_2014_year_pairs
+vz_2013_year_pairs
 
 
 # ============================================================
@@ -804,48 +805,872 @@ vz_2014_year_pairs
 # ============================================================
 
 sink(
-  "/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_mixed_model_results_2014_2024.txt"
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_mixed_model_results_2013_2024.txt"
 )
 
-cat("=== VZ MIXED-EFFECTS MODEL: 2014–2024 ===\n\n")
+cat("=== VZ MIXED-EFFECTS MODEL: 2013–2024 ===\n\n")
 
 cat("MODEL SUMMARY\n")
-print(summary(model_vz_2014_2024))
+print(summary(model_vz_2013_2024))
 
 cat("\nFIXED-EFFECT TESTS\n")
-print(joint_tests(model_vz_2014_2024))
+print(joint_tests(model_vz_2013_2024))
 
 cat("\nREGIONAL SALINITY SLOPES\n")
 print(
   summary(
-    vz_2014_salinity,
+    vz_2013_salinity,
     infer = c(TRUE, TRUE)
   )
 )
 
 cat("\nPAIRWISE SALINITY-SLOPE COMPARISONS\n")
-print(vz_2014_salinity_pairs)
+print(vz_2013_salinity_pairs)
 
 cat("\nREGIONAL YEAR SLOPES\n")
 print(
   summary(
-    vz_2014_year,
+    vz_2013_year,
     infer = c(TRUE, TRUE)
   )
 )
 
 cat("\nPAIRWISE YEAR-SLOPE COMPARISONS\n")
-print(vz_2014_year_pairs)
+print(vz_2013_year_pairs)
 
 cat("\nVARIANCE COMPONENTS\n")
-print(VarCorr(model_vz_2014_2024))
+print(VarCorr(model_vz_2013_2024))
 
 cat("\nMODEL FIT\n")
-cat("AIC:", AIC(model_vz_2014_2024), "\n")
-cat("BIC:", BIC(model_vz_2014_2024), "\n")
-cat("logLik:", as.numeric(logLik(model_vz_2014_2024)), "\n")
-cat("N:", nobs(model_vz_2014_2024), "\n")
+cat("AIC:", AIC(model_vz_2013_2024), "\n")
+cat("BIC:", BIC(model_vz_2013_2024), "\n")
+cat("logLik:", as.numeric(logLik(model_vz_2013_2024)), "\n")
+cat("N:", nobs(model_vz_2013_2024), "\n")
+
+sink()
+#
+########## Threshold analysis for vz ####
+# ============================================================
+# 1. Prepare VZ data
+# ============================================================
+
+vz_data <- mixed_data %>%
+  filter(
+    !is.na(proportion_Int1),
+    !is.na(salinity),
+    !is.na(year),
+    !is.na(ID)
+  ) %>%
+  mutate(
+    ID = factor(ID),
+    year_f = factor(year),
+    year_c = year - mean(year, na.rm = TRUE)
+  )
+
+
+# ============================================================
+# 2. Define candidate salinity thresholds
+#
+# Avoid extreme tails because there may be too few observations
+# on one side of the breakpoint.
+# ============================================================
+
+candidate_thresholds <- seq(
+  quantile(vz_data$salinity, 0.10, na.rm = TRUE),
+  quantile(vz_data$salinity, 0.90, na.rm = TRUE),
+  by = 0.25
+)
+
+candidate_thresholds
+# ============================================================
+# 3. Fit threshold models
+#
+# Model:
+#
+#   VZ = b0 + b1*salinity + b2*(salinity-threshold)+ + ...
+#
+# Below threshold:
+#   slope = b1
+#
+# Above threshold:
+#   slope = b1 + b2
+# ============================================================
+
+results <- data.frame(
+  threshold = candidate_thresholds,
+  AIC = NA_real_
+)
+
+models <- vector("list", length(candidate_thresholds))
+
+
+for (i in seq_along(candidate_thresholds)) {
+  
+  bp <- candidate_thresholds[i]
+  
+  cat(
+    "Fitting model",
+    i, "of", length(candidate_thresholds),
+    "| threshold =", round(bp, 2), "PSU\n"
+  )
+  
+  flush.console()
+  
+  dat <- vz_data %>%
+    mutate(
+      salinity_bp = salinity - bp,
+      post_threshold = pmax(0, salinity - bp)
+    )
+  
+  mod <- glmmTMB(
+    proportion_Int1 ~
+      salinity_bp +
+      post_threshold +
+      year_c +
+      (1 | ID) +
+      (1 | RegionYear) +
+      ar1(year_f + 0 | ID),
+    data = dat,
+    family = gaussian()
+  )
+  
+  models[[i]] <- mod
+  results$AIC[i] <- AIC(mod)
+  
+  cat("   AIC =", round(results$AIC[i], 2), "\n")
+  flush.console()
+}
+
+results <- results %>%
+  mutate(
+    delta_AIC = AIC - min(AIC)
+  ) %>%
+  arrange(AIC)
+
+results
+best_threshold <- results$threshold[1]
+
+best_threshold
+
+best_index <- which(candidate_thresholds == best_threshold)
+
+best_model <- models[[best_index]]
+
+summary(best_model)
+# ============================================================
+# SAVE ALL THRESHOLD ANALYSIS RESULTS TO A TEXT FILE
+# ============================================================
+
+output_file <- "/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_threshold_analysis_results.txt"
+
+sink(output_file)
+
+cat("============================================================\n")
+cat("VZ-SALINITY THRESHOLD ANALYSIS\n")
+cat("============================================================\n\n")
+
+
+# ------------------------------------------------------------
+# 1. Best threshold
+# ------------------------------------------------------------
+
+cat("BEST THRESHOLD\n")
+cat("------------------------------------------------------------\n")
+cat("Best threshold =", best_threshold, "PSU\n\n")
+
+
+# ------------------------------------------------------------
+# 2. All candidate thresholds and AIC
+# ------------------------------------------------------------
+
+cat("ALL CANDIDATE THRESHOLDS\n")
+cat("------------------------------------------------------------\n")
+print(results)
+cat("\n\n")
+
+
+# ------------------------------------------------------------
+# 3. Best model summary
+# ------------------------------------------------------------
+
+cat("BEST THRESHOLD MODEL SUMMARY\n")
+cat("------------------------------------------------------------\n")
+print(summary(best_model))
+cat("\n\n")
+
+
+# ------------------------------------------------------------
+# 4. Fixed effects
+# ------------------------------------------------------------
+
+cat("FIXED EFFECTS\n")
+cat("------------------------------------------------------------\n")
+print(fixef(best_model)$cond)
+cat("\n\n")
+
+
+# ------------------------------------------------------------
+# 5. Variance-covariance parameters
+# ------------------------------------------------------------
+
+cat("VARIANCE / RANDOM EFFECT PARAMETERS\n")
+cat("------------------------------------------------------------\n")
+print(VarCorr(best_model))
+cat("\n\n")
+
+
+# ------------------------------------------------------------
+# 6. AIC of best threshold model
+# ------------------------------------------------------------
+
+cat("BEST THRESHOLD MODEL AIC\n")
+cat("------------------------------------------------------------\n")
+print(AIC(best_model))
+cat("\n\n")
+
+
+# ------------------------------------------------------------
+# 7. Linear model for comparison
+# ------------------------------------------------------------
+
+linear_model <- glmmTMB(
+  proportion_Int1 ~
+    salinity +
+    year_c +
+    (1 | ID) +
+    (1 | RegionYear) +
+    ar1(year_f + 0 | ID),
+  data = vz_data,
+  family = gaussian()
+)
+
+cat("LINEAR MODEL SUMMARY\n")
+cat("------------------------------------------------------------\n")
+print(summary(linear_model))
+cat("\n\n")
+
+
+# ------------------------------------------------------------
+# 8. Linear vs threshold AIC
+# ------------------------------------------------------------
+
+cat("LINEAR VS THRESHOLD MODEL AIC\n")
+cat("------------------------------------------------------------\n")
+print(AIC(linear_model, best_model))
+
+cat("\n")
+
+cat(
+  "AIC improvement (linear - threshold) =",
+  AIC(linear_model) - AIC(best_model),
+  "\n\n"
+)
+
+
+# ------------------------------------------------------------
+# Close output file
+# ------------------------------------------------------------
 
 sink()
 
+cat("Results saved to:\n")
+cat(normalizePath(output_file), "\n")
+
+########## Last analysis ######
+# ============================================================
+# CALCULATE THRESHOLD SLOPES AND SAVE DIRECTLY TO TXT
+# ============================================================
+
+# Extract coefficients and covariance matrix
+b <- fixef(best_model)$cond
+V <- vcov(best_model)$cond
+
+# Function to calculate slope, SE, CI, z, and p
+get_slope <- function(L, b, V) {
+  
+  est <- sum(L * b)
+  
+  se <- sqrt(
+    as.numeric(t(L) %*% V %*% L)
+  )
+  
+  z <- est / se
+  p <- 2 * pnorm(abs(z), lower.tail = FALSE)
+  
+  data.frame(
+    estimate = est,
+    SE = se,
+    lower95 = est - 1.96 * se,
+    upper95 = est + 1.96 * se,
+    z = z,
+    p = p
+  )
+}
+
+
+# ============================================================
+# BELOW-THRESHOLD SLOPE
+# ============================================================
+
+L_below <- setNames(rep(0, length(b)), names(b))
+L_below["salinity_bp"] <- 1
+
+below <- get_slope(L_below, b, V)
+
+
+# ============================================================
+# ABOVE-THRESHOLD SLOPE
+# ============================================================
+
+L_above <- setNames(rep(0, length(b)), names(b))
+L_above["salinity_bp"] <- 1
+L_above["post_threshold"] <- 1
+
+above <- get_slope(L_above, b, V)
+
+
+# ============================================================
+# CHANGE IN SLOPE
+# ============================================================
+
+L_change <- setNames(rep(0, length(b)), names(b))
+L_change["post_threshold"] <- 1
+
+change <- get_slope(L_change, b, V)
+
+
+# ============================================================
+# CONVERT TO PERCENTAGE POINTS PER PSU
+# ============================================================
+
+cols <- c("estimate", "SE", "lower95", "upper95")
+
+below[cols] <- below[cols] * 100
+above[cols] <- above[cols] * 100
+change[cols] <- change[cols] * 100
+
+
+# ============================================================
+# SAVE EVERYTHING TO FILE
+# ============================================================
+
+output_file <- paste0(
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/",
+  "VZ_threshold_slopes_results.txt"
+)
+
+con <- file(output_file, open = "wt")
+
+writeLines(
+  c(
+    "============================================================",
+    "VZ-SALINITY THRESHOLD SLOPE RESULTS",
+    "============================================================",
+    "",
+    paste("Best threshold =", round(best_threshold, 4), "PSU"),
+    ""
+  ),
+  con
+)
+
+
+writeLines(
+  c(
+    "------------------------------------------------------------",
+    "BELOW-THRESHOLD SLOPE",
+    paste("Salinity <", round(best_threshold, 4), "PSU"),
+    "Units: VZ percentage points per PSU",
+    "------------------------------------------------------------"
+  ),
+  con
+)
+
+write.table(
+  below,
+  file = con,
+  row.names = FALSE,
+  quote = FALSE
+)
+
+
+writeLines(
+  c(
+    "",
+    "------------------------------------------------------------",
+    "ABOVE-THRESHOLD SLOPE",
+    paste("Salinity >", round(best_threshold, 4), "PSU"),
+    "Units: VZ percentage points per PSU",
+    "------------------------------------------------------------"
+  ),
+  con
+)
+
+write.table(
+  above,
+  file = con,
+  row.names = FALSE,
+  quote = FALSE
+)
+
+
+writeLines(
+  c(
+    "",
+    "------------------------------------------------------------",
+    "CHANGE IN SLOPE AT THRESHOLD",
+    "Units: VZ percentage points per PSU",
+    "------------------------------------------------------------"
+  ),
+  con
+)
+
+write.table(
+  change,
+  file = con,
+  row.names = FALSE,
+  quote = FALSE
+)
+
+
+writeLines(
+  c(
+    "",
+    "------------------------------------------------------------",
+    "MODEL INFORMATION",
+    "------------------------------------------------------------",
+    paste("Threshold model AIC =", AIC(best_model)),
+    paste("Number of observations =", nobs(best_model))
+  ),
+  con
+)
+
+close(con)
+
+######### Region adjusted ###
+# ============================================================
+# REGION-ADJUSTED VZ-SALINITY THRESHOLD ANALYSIS
+# ============================================================
+
+# Data already contain:
+# proportion_Int1, salinity, region, year_c,
+# ID, RegionYear, year_f
+
+vz_region_data <- mixed_data %>%
+  filter(
+    !is.na(proportion_Int1),
+    !is.na(salinity),
+    !is.na(region),
+    !is.na(year),
+    !is.na(ID)
+  ) %>%
+  mutate(
+    ID = factor(ID),
+    region = factor(region, levels = c("West", "Central", "East")),
+    year_f = factor(year, levels = sort(unique(year))),
+    year_c = year - mean(year, na.rm = TRUE),
+    RegionYear = interaction(region, year, drop = TRUE)
+  )
+
+
+# ============================================================
+# 1. Candidate thresholds
+# ============================================================
+
+candidate_thresholds_region <- seq(
+  quantile(vz_region_data$salinity, 0.10, na.rm = TRUE),
+  quantile(vz_region_data$salinity, 0.90, na.rm = TRUE),
+  by = 0.25
+)
+
+region_results <- data.frame(
+  threshold = candidate_thresholds_region,
+  AIC = NA_real_
+)
+
+region_models <- vector(
+  "list",
+  length(candidate_thresholds_region)
+)
+
+
+# ============================================================
+# 2. Fit region-adjusted piecewise models
 #
+# Important:
+# - region controls baseline differences
+# - year_c * region allows regional temporal trends to differ
+# - threshold effect is global across regions
+# ============================================================
+
+for (i in seq_along(candidate_thresholds_region)) {
+  
+  bp <- candidate_thresholds_region[i]
+  
+  cat(
+    "Region-adjusted model",
+    i, "of", length(candidate_thresholds_region),
+    "| threshold =", round(bp, 2), "PSU\n"
+  )
+  flush.console()
+  
+  dat_region <- vz_region_data %>%
+    mutate(
+      salinity_bp = salinity - bp,
+      post_threshold = pmax(0, salinity - bp)
+    )
+  
+  mod_region <- glmmTMB(
+    proportion_Int1 ~
+      salinity_bp +
+      post_threshold +
+      region +
+      year_c * region +
+      (1 | ID) +
+      (1 | RegionYear) +
+      ar1(year_f + 0 | ID),
+    data = dat_region,
+    family = gaussian()
+  )
+  
+  region_models[[i]] <- mod_region
+  region_results$AIC[i] <- AIC(mod_region)
+  
+  cat(
+    "   AIC =",
+    round(region_results$AIC[i], 2),
+    "\n"
+  )
+  flush.console()
+}
+
+
+# ============================================================
+# 3. Identify best threshold
+# ============================================================
+
+region_results <- region_results %>%
+  mutate(
+    delta_AIC = AIC - min(AIC)
+  ) %>%
+  arrange(AIC)
+
+best_threshold_region <- region_results$threshold[1]
+
+best_index_region <- which(
+  candidate_thresholds_region == best_threshold_region
+)
+
+best_model_region <- region_models[[best_index_region]]
+
+
+# ============================================================
+# 4. Equivalent REGION-ADJUSTED LINEAR model
+# ============================================================
+
+linear_model_region <- glmmTMB(
+  proportion_Int1 ~
+    salinity +
+    region +
+    year_c * region +
+    (1 | ID) +
+    (1 | RegionYear) +
+    ar1(year_f + 0 | ID),
+  data = vz_region_data,
+  family = gaussian()
+)
+
+
+# ============================================================
+# 5. Calculate below- and above-threshold slopes
+# ============================================================
+
+b_region <- fixef(best_model_region)$cond
+V_region <- vcov(best_model_region)$cond
+
+
+get_slope_region <- function(L, b, V) {
+  
+  est <- sum(L * b)
+  
+  se <- sqrt(
+    as.numeric(t(L) %*% V %*% L)
+  )
+  
+  z <- est / se
+  
+  p <- 2 * pnorm(
+    abs(z),
+    lower.tail = FALSE
+  )
+  
+  data.frame(
+    estimate = est,
+    SE = se,
+    lower95 = est - 1.96 * se,
+    upper95 = est + 1.96 * se,
+    z = z,
+    p = p
+  )
+}
+
+
+# Below threshold
+L_below_region <- setNames(
+  rep(0, length(b_region)),
+  names(b_region)
+)
+
+L_below_region["salinity_bp"] <- 1
+
+below_region <- get_slope_region(
+  L_below_region,
+  b_region,
+  V_region
+)
+
+
+# Above threshold
+L_above_region <- setNames(
+  rep(0, length(b_region)),
+  names(b_region)
+)
+
+L_above_region["salinity_bp"] <- 1
+L_above_region["post_threshold"] <- 1
+
+above_region <- get_slope_region(
+  L_above_region,
+  b_region,
+  V_region
+)
+
+
+# Change in slope
+L_change_region <- setNames(
+  rep(0, length(b_region)),
+  names(b_region)
+)
+
+L_change_region["post_threshold"] <- 1
+
+change_region <- get_slope_region(
+  L_change_region,
+  b_region,
+  V_region
+)
+
+
+# Convert proportions to percentage points
+cols <- c(
+  "estimate",
+  "SE",
+  "lower95",
+  "upper95"
+)
+
+below_region[cols] <- below_region[cols] * 100
+above_region[cols] <- above_region[cols] * 100
+change_region[cols] <- change_region[cols] * 100
+
+
+# ============================================================
+# 6. Save EVERYTHING directly to TXT
+# ============================================================
+
+output_region <- paste0(
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/",
+  "VZ_threshold_region_adjusted_results.txt"
+)
+
+con <- file(
+  output_region,
+  open = "wt"
+)
+
+
+writeLines(
+  c(
+    "============================================================",
+    "REGION-ADJUSTED VZ-SALINITY THRESHOLD ANALYSIS",
+    "============================================================",
+    "",
+    paste(
+      "Best threshold =",
+      round(best_threshold_region, 4),
+      "PSU"
+    ),
+    ""
+  ),
+  con
+)
+
+
+# AIC grid
+writeLines(
+  c(
+    "------------------------------------------------------------",
+    "ALL CANDIDATE THRESHOLDS",
+    "------------------------------------------------------------"
+  ),
+  con
+)
+
+write.table(
+  region_results,
+  file = con,
+  row.names = FALSE,
+  quote = FALSE
+)
+
+
+# Best threshold model
+writeLines(
+  c(
+    "",
+    "",
+    "------------------------------------------------------------",
+    "BEST REGION-ADJUSTED THRESHOLD MODEL",
+    "------------------------------------------------------------"
+  ),
+  con
+)
+
+capture.output(
+  summary(best_model_region),
+  file = con,
+  append = TRUE
+)
+
+
+# Slopes
+writeLines(
+  c(
+    "",
+    "",
+    "------------------------------------------------------------",
+    "BELOW-THRESHOLD SLOPE",
+    paste(
+      "Salinity <",
+      round(best_threshold_region, 4),
+      "PSU"
+    ),
+    "Units: VZ percentage points per PSU",
+    "------------------------------------------------------------"
+  ),
+  con
+)
+
+write.table(
+  below_region,
+  file = con,
+  row.names = FALSE,
+  quote = FALSE
+)
+
+
+writeLines(
+  c(
+    "",
+    "------------------------------------------------------------",
+    "ABOVE-THRESHOLD SLOPE",
+    paste(
+      "Salinity >",
+      round(best_threshold_region, 4),
+      "PSU"
+    ),
+    "Units: VZ percentage points per PSU",
+    "------------------------------------------------------------"
+  ),
+  con
+)
+
+write.table(
+  above_region,
+  file = con,
+  row.names = FALSE,
+  quote = FALSE
+)
+
+
+writeLines(
+  c(
+    "",
+    "------------------------------------------------------------",
+    "CHANGE IN SLOPE AT THRESHOLD",
+    "Units: VZ percentage points per PSU",
+    "------------------------------------------------------------"
+  ),
+  con
+)
+
+write.table(
+  change_region,
+  file = con,
+  row.names = FALSE,
+  quote = FALSE
+)
+
+
+# Linear model
+writeLines(
+  c(
+    "",
+    "",
+    "------------------------------------------------------------",
+    "REGION-ADJUSTED LINEAR MODEL",
+    "------------------------------------------------------------"
+  ),
+  con
+)
+
+capture.output(
+  summary(linear_model_region),
+  file = con,
+  append = TRUE
+)
+
+
+# AIC comparison
+writeLines(
+  c(
+    "",
+    "",
+    "------------------------------------------------------------",
+    "LINEAR VS THRESHOLD MODEL COMPARISON",
+    "------------------------------------------------------------"
+  ),
+  con
+)
+
+aic_compare_region <- AIC(
+  linear_model_region,
+  best_model_region
+)
+
+write.table(
+  aic_compare_region,
+  file = con,
+  row.names = TRUE,
+  quote = FALSE
+)
+
+writeLines(
+  c(
+    "",
+    paste(
+      "AIC improvement (linear - threshold) =",
+      AIC(linear_model_region) -
+        AIC(best_model_region)
+    ),
+    "",
+    paste(
+      "N =",
+      nobs(best_model_region)
+    )
+  ),
+  con
+)
+
+
+close(con)
+
