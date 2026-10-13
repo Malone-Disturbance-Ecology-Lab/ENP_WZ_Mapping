@@ -229,10 +229,8 @@ all_site_names <- salinity_data$site[salinity_data$site %in% selected_sites]
 
 # Section 6.2: Filter summary_data_df for the years that match ###
 matching_years <- salinity_data$year  ## 1991 onwards 
-
 summary_data <- summary_data_df %>%
   filter(time %in% matching_years)
-
 summary_data$time <- as.double(summary_data$time)
 
 #### 6.3 Assign the sites to a region (west, central, and east) ##
@@ -258,6 +256,16 @@ central <- c(
 east <- c(
   "FLAB04_salinity"
 )
+
+salinity_data <- salinity_data %>%
+  mutate(
+    subregion = case_when(
+      site %in% west ~ "West",
+      site %in% central ~ "Central",
+      site %in% east ~ "East",
+      TRUE ~ NA_character_
+    )
+  )
 
 ##### Section 6.2 Calculate correlations by region #################
 correlation_salinity_dz_detrended <-
@@ -1646,6 +1654,10 @@ aic_compare_region <- AIC(
   linear_model_region,
   best_model_region
 )
+
+# Count the estimated breakpoint as one additional parameter
+aic_compare_region$df[2] <- aic_compare_region$df[2] + 1
+aic_compare_region$AIC[2] <- aic_compare_region$AIC[2] + 2
 
 write.table(
   aic_compare_region,

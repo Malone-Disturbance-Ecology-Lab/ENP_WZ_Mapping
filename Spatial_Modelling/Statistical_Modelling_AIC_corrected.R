@@ -1,16 +1,3 @@
----
-title: "SESE Full Analysis Workflow"
-author: "Boya (Paul) Zhang and Sparkle L. Malone"
-output: html_document
----
-
-# Full analysis script
-
-This file preserves the full uploaded R workflow and divides it into executable R Markdown blocks.
-
-## Setup and packages
-
-```{r setup-packages}
 
 ##' @title This is the workflow to generate all the results 
 ##' @author Boya (Paul) Zhang, Sparkle L. Malone
@@ -42,15 +29,7 @@ library(stats)
 library(glmmTMB)
 library(emmeans)
 library(performance)
-
-# Statistical output directory ----
-dir.create("/Users/bz294/Documents/WhiteZone/Figure/Backup/Mark_Down", recursive = TRUE, showWarnings = FALSE)
-```
-
-# 1. Setting up ----
-
-```{r 1-setting-up}
-# Section 1 - Setting up ----
+### Section 1 - Setting up ####
 get_directory <- function() {
   args <- commandArgs(trailingOnly = FALSE)
   file <- "--file="
@@ -81,18 +60,8 @@ rast.files <- list.files(
   full.names = TRUE
 )
 
-```
-
-# 2. Raster stack and transects ----
-
-```{r 2-raster-transects}
-# Section 2 - Read in raster stack and transects ----
-```
-
-# 2. Raster stack and transects ----
-
-```{r 2-raster-transects}
-# Section 2.1 - read in raster stack ----
+### Section 2 - Read in raster stack and transects ####
+### Section 2.1 - read in raster stack ###
 setwd( '/Volumes/MaloneLab/Research/Whitezone/Result/Emulation/Final/Roy')
 
 coast <- rast(rast.files) %>%
@@ -114,12 +83,7 @@ ENP.transects <- ENP.transects %>%
   ) %>%
   dplyr::select(-centroid)  # remove if centroid is not needed
 
-```
-
-# 2. Raster stack and transects ----
-
-```{r 2-raster-transects}
-# Section 2.2 - plot time series of land cover change for figures in the manuscript (Fig. 5 and Fig. 8) ----
+### Section 2.2 - plot time series of land cover change for figures in the manuscript (Fig. 5 and Fig. 8) ###
 plot_land_cover_time_series("/Volumes/Malonelab/Research/Whitezone/Result/Emulation/Final/CDthreshold06/CD_closest_GE/",
                             "/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/land_cover_time_series.tif", NULL, 20, 105,2014)
 
@@ -146,7 +110,7 @@ plot_boundary_and_basemap(
   transect_shapefile_path = "/Volumes/MaloneLab/Research/Whitezone/Spatial_Data/transects_37_61.shp"
 )
 
-# Section 2.3 - Output the transects for splitting the SESE into subregions ----
+## Section 2.3 - Output the transects for splitting the SESE into subregions # 
 ## Transects 37 and 63
 ENP.transects <- st_as_sf(ENP.transects)
 
@@ -160,22 +124,17 @@ st_write(subset_transects,
          "/Volumes/MaloneLab/Research/Whitezone/Spatial_Data/transects_37_61.shp",
          delete_dsn = TRUE)  # overwrite if exists
 
-```
-
-# 3. Land-cover proportion data and transects ----
-
-```{r 3-land-cover-data}
-# Section 3 Prepare the land-cover proportion data (summary_data_df) and transects ----
+############## Section 3 Prepare the land-cover proportion data (summary_data_df) and transects ####
 ## load the results, instead of running the four steps above. 
 #load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results.RData")
 
 load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/results_Roy.RData")
-# Section 3.1: Combine all land cover change data into one data frame ----
+# Section 3.1: Combine all land cover change data into one data frame
 summary_data_df <- do.call(rbind, results)
 summary_data_df$year <- as.double(summary_data_df$year)
 colnames(summary_data_df) <- c("ID", "time", "proportion_Int1", "proportion_Int2", "proportion_Int3")
 
-# Section 3.2 extract transects ----
+## Section 3.2 extract transects ##
 aoi <- st_read("/Volumes/MaloneLab/Research/Whitezone/Data/SEregion_reprojected_revise.shp")
 aoi <- st_transform(aoi, st_crs(ENP.transects))
 transects_in_polygon <- st_intersection(ENP.transects, aoi)
@@ -190,12 +149,7 @@ ggplot() +
     x = "Easting",
     y = "Northing"
   )
-```
-
-# 4. Transect-level change rates ----
-
-```{r 4-change-rates}
-# Section 4. Calculate transect-level change rates for DZ and VZ (Results section) ----
+#################### Section 4. Calculate transect-level change rates for DZ and VZ (Results section) #####################################
 temp <- summary_data_df %>%
   arrange(ID, time) %>%
   group_by(ID) %>%
@@ -239,30 +193,20 @@ rescaled_vz <- result_vz$transects
 calculate_length_change_averages(rate_results, "length_change_Int2", custom_range = c(27, 37))
 calculate_length_change_averages(rate_results, "length_change_Int1", custom_range = c(27, 37))
 
-```
+####Section 5 - Generating interior boundary of DZ shift (Results section) ######
 
-# 5. DZ interior-boundary shift ----
-
-```{r 5-dz-boundary}
-# Section 5 - Generating interior boundary of DZ shift (Results section) ----
-
-# Section 5.1 Calculate DZ interior boundary shift rates ----
+# Section 5.1 Calculate DZ interior boundary shift rates
 
 load("/Volumes/Malonelab/Research/Whitezone/Result/Spatial_Modelling/north_point_Roy.RData")
 
-# 5.2 Calculate distance to coast ----
+##### 5.2 Calculate distance to coast ###
 ENP.transects_utm <- transects_in_polygon %>%
   st_transform(32617)
 
 # points_1984_clean <- points_1984 %>%
 #   filter(!is.na(X), !is.na(Y))
-```
-
-# 6. Salinity processing and statistical analyses ----
-
-```{r 6-salinity}
-# Section 6 - processing salinity data (Fig. 7) ----
-# Section 6.1 read in the salinity data ----
+###################### Section 6 - processing salinity data (Fig. 7) ###########
+### Section 6.1 read in the salinity data
 salinity_data <- read.csv("/Volumes/MaloneLab/Research/Whitezone/Hydro_Salinity/Salinity/salinity_annual_avg_full.csv")
 selected_sites <- c(
   "FLAB12_salinity",
@@ -283,15 +227,13 @@ selected_sites <- c(
 
 all_site_names <- salinity_data$site[salinity_data$site %in% selected_sites]
 
-# Section 6.2: Filter summary_data_df for the years that match ----
+# Section 6.2: Filter summary_data_df for the years that match ###
 matching_years <- salinity_data$year  ## 1991 onwards 
-
 summary_data <- summary_data_df %>%
   filter(time %in% matching_years)
-
 summary_data$time <- as.double(summary_data$time)
 
-# 6.3 Assign the sites to a region (west, central, and east) ----
+#### 6.3 Assign the sites to a region (west, central, and east) ##
 west <- c(
   "FLAB12_salinity",
   "FLAB11_salinity",
@@ -315,7 +257,17 @@ east <- c(
   "FLAB04_salinity"
 )
 
-# Section 6.2 Calculate correlations by region ----
+salinity_data <- salinity_data %>%
+  mutate(
+    subregion = case_when(
+      site %in% west ~ "West",
+      site %in% central ~ "Central",
+      site %in% east ~ "East",
+      TRUE ~ NA_character_
+    )
+  )
+
+##### Section 6.2 Calculate correlations by region #################
 correlation_salinity_dz_detrended <-
   compute_detrended_correlations_by_region(
     all_annual_averages = salinity_data,
@@ -328,7 +280,7 @@ correlation_salinity_dz_detrended <-
 
 head(correlation_salinity_dz_detrended)
 
-# Section 6.3 Join with the lat and lon info ----
+##### Section 6.3 Join with the lat and lon info #################
 csv_file <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Salinity/WZ_salinity_sites_latlon.csv"  # replace with your file path
 salinity_summary <- read.csv(csv_file)
 salinity_summary <- na.omit(salinity_summary)  # Remove rows with N/A values
@@ -342,7 +294,7 @@ salinity_summary <- salinity_summary %>% ## this data is the records for salinit
 salinity_summary$lon_decimal <- -abs(salinity_summary$lon_decimal)
 export_flab_stations(salinity_summary, '/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/Results/')
 
-# 6.4 Plot DZ correlation with salinity based on rates ----
+#### 6.4 Plot DZ correlation with salinity based on rates ######
 # Join correlation to the transects
 rescaled_transects_colored <- rescaled_transects %>%
   left_join(correlation_salinity_dz_detrended, by = "ID")
@@ -436,7 +388,7 @@ dz_output <- rescaled_transects_colored %>%
 
 write.csv(
   dz_output,
-  "/Users/bz294/Documents/WhiteZone/Figure/Backup/Mark_Down/dz_correlation_detrended.csv",
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/dz_correlation_detrended.csv",
   row.names = FALSE
 )
 ############# Plot the transect land-cover data ######
@@ -480,7 +432,8 @@ ggplot(annual_mean, aes(x = year, y = mean_annual)) +
   theme_minimal()
 
 
-# 6.5 Plot VZ correlation with salinity based on rates ----
+
+#### 6.5 Plot VZ correlation with salinity based on rates ######
 # Join correlation to the transects
 
 # correlation_salinity_vz <- compute_site_correlations_by_region(
@@ -589,7 +542,7 @@ summary(correlation_salinity_vz_detrended$correlation)
 # Save to CSV
 write.csv(
   correlation_salinity_vz_detrended,
-  "/Users/bz294/Documents/WhiteZone/Figure/Backup/Mark_Down/VZ_detrended_correlation.csv",
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_detrended_correlation.csv",
   row.names = FALSE
 )
 
@@ -661,8 +614,8 @@ summary(dz2_year, infer = c(TRUE, TRUE))
 dz2_year_pairs <- pairs(dz2_year, adjust = "tukey")
 dz2_year_pairs
 
-# Save all results ----
-sink("/Users/bz294/Documents/WhiteZone/Figure/Backup/Mark_Down/DZ_mixed_model_results.txt")
+# Save all results
+sink("/Users/bz294/Documents/WhiteZone/Figure/Backup/DZ_mixed_model_results.txt")
 
 cat("=== DZ MIXED-EFFECTS MODEL ===\n\n")
 
@@ -706,18 +659,18 @@ model_vz2 <- glmmTMB(
   family = gaussian()
 )
 
-# Overall model results ----
+# Overall model results
 summary(model_vz2)
 joint_tests(model_vz2)
 
-# Regional salinity slopes ----
+# Regional salinity slopes
 vz2_salinity <- emtrends(model_vz2, ~ region, var = "salinity_c")
 summary(vz2_salinity, infer = c(TRUE, TRUE))
 
 vz2_salinity_pairs <- pairs(vz2_salinity, adjust = "tukey")
 vz2_salinity_pairs
 
-# Regional year slopes ----
+# Regional year slopes
 vz2_year <- emtrends(model_vz2, ~ region, var = "year_c")
 summary(vz2_year, infer = c(TRUE, TRUE))
 
@@ -725,9 +678,11 @@ vz2_year_pairs <- pairs(vz2_year, adjust = "tukey")
 vz2_year_pairs
 
 
-# Save all VZ results to TXT ----
+# ============================================================
+# Save all VZ results to TXT
+# ============================================================
 
-sink("/Users/bz294/Documents/WhiteZone/Figure/Backup/Mark_Down/VZ_mixed_model_results.txt")
+sink("/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_mixed_model_results.txt")
 
 cat("=== VZ MIXED-EFFECTS MODEL ===\n\n")
 
@@ -760,14 +715,11 @@ cat("N:", nobs(model_vz2), "\n")
 
 sink()
 
-```
-
-# 7. VZ sensitivity analysis: 2013–2024 ----
-
-```{r 7-vz-2013-2024}
 ############## 2013–2024 VZ ########
 
+# ============================================================
 # 2013–2024 DATA
+# ============================================================
 
 mixed_data_2013_2024 <- mixed_data %>%
   filter(year >= 2013, year <= 2024) %>%
@@ -786,7 +738,9 @@ table(mixed_data_2013_2024$year)
 table(mixed_data_2013_2024$region)
 
 
-# VZ MIXED-EFFECTS MODEL: 2013–2024 ----
+# ============================================================
+# VZ MIXED-EFFECTS MODEL: 2013–2024
+# ============================================================
 
 model_vz_2013_2024 <- glmmTMB(
   proportion_Int1 ~ salinity_c * region + year_c * region +
@@ -799,14 +753,18 @@ model_vz_2013_2024 <- glmmTMB(
 )
 
 
-# OVERALL MODEL RESULTS ----
+# ============================================================
+# OVERALL MODEL RESULTS
+# ============================================================
 
 summary(model_vz_2013_2024)
 
 joint_tests(model_vz_2013_2024)
 
 
-# REGIONAL SALINITY SLOPES ----
+# ============================================================
+# REGIONAL SALINITY SLOPES
+# ============================================================
 
 vz_2013_salinity <- emtrends(
   model_vz_2013_2024,
@@ -827,7 +785,9 @@ vz_2013_salinity_pairs <- pairs(
 vz_2013_salinity_pairs
 
 
-# REGIONAL YEAR SLOPES ----
+# ============================================================
+# REGIONAL YEAR SLOPES
+# ============================================================
 
 vz_2013_year <- emtrends(
   model_vz_2013_2024,
@@ -848,10 +808,12 @@ vz_2013_year_pairs <- pairs(
 vz_2013_year_pairs
 
 
-# SAVE ALL RESULTS ----
+# ============================================================
+# SAVE ALL RESULTS
+# ============================================================
 
 sink(
-  "/Users/bz294/Documents/WhiteZone/Figure/Backup/Mark_Down/VZ_mixed_model_results_2013_2024.txt"
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_mixed_model_results_2013_2024.txt"
 )
 
 cat("=== VZ MIXED-EFFECTS MODEL: 2013–2024 ===\n\n")
@@ -895,13 +857,10 @@ cat("N:", nobs(model_vz_2013_2024), "\n")
 
 sink()
 #
-```
-
-# 8. VZ salinity-threshold analysis ----
-
-```{r 8-vz-threshold}
-# Threshold analysis for vz ----
-# 1. Prepare VZ data ----
+########## Threshold analysis for vz ####
+# ============================================================
+# 1. Prepare VZ data
+# ============================================================
 
 vz_data <- mixed_data %>%
   filter(
@@ -917,10 +876,12 @@ vz_data <- mixed_data %>%
   )
 
 
-# 2. Define candidate salinity thresholds ----
+# ============================================================
+# 2. Define candidate salinity thresholds
 #
 # Avoid extreme tails because there may be too few observations
 # on one side of the breakpoint.
+# ============================================================
 
 candidate_thresholds <- seq(
   quantile(vz_data$salinity, 0.10, na.rm = TRUE),
@@ -929,7 +890,8 @@ candidate_thresholds <- seq(
 )
 
 candidate_thresholds
-# 3. Fit threshold models ----
+# ============================================================
+# 3. Fit threshold models
 #
 # Model:
 #
@@ -940,6 +902,7 @@ candidate_thresholds
 #
 # Above threshold:
 #   slope = b1 + b2
+# ============================================================
 
 results <- data.frame(
   threshold = candidate_thresholds,
@@ -1002,9 +965,11 @@ best_index <- which(candidate_thresholds == best_threshold)
 best_model <- models[[best_index]]
 
 summary(best_model)
-# SAVE ALL THRESHOLD ANALYSIS RESULTS TO A TEXT FILE ----
+# ============================================================
+# SAVE ALL THRESHOLD ANALYSIS RESULTS TO A TEXT FILE
+# ============================================================
 
-output_file <- "/Users/bz294/Documents/WhiteZone/Figure/Backup/Mark_Down/VZ_threshold_analysis_results.txt"
+output_file <- "/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_threshold_analysis_results.txt"
 
 sink(output_file)
 
@@ -1013,14 +978,18 @@ cat("VZ-SALINITY THRESHOLD ANALYSIS\n")
 cat("============================================================\n\n")
 
 
-# 1. Best threshold ----
+# ------------------------------------------------------------
+# 1. Best threshold
+# ------------------------------------------------------------
 
 cat("BEST THRESHOLD\n")
 cat("------------------------------------------------------------\n")
 cat("Best threshold =", best_threshold, "PSU\n\n")
 
 
-# 2. All candidate thresholds and AIC ----
+# ------------------------------------------------------------
+# 2. All candidate thresholds and AIC
+# ------------------------------------------------------------
 
 cat("ALL CANDIDATE THRESHOLDS\n")
 cat("------------------------------------------------------------\n")
@@ -1028,7 +997,9 @@ print(results)
 cat("\n\n")
 
 
-# 3. Best model summary ----
+# ------------------------------------------------------------
+# 3. Best model summary
+# ------------------------------------------------------------
 
 cat("BEST THRESHOLD MODEL SUMMARY\n")
 cat("------------------------------------------------------------\n")
@@ -1036,7 +1007,9 @@ print(summary(best_model))
 cat("\n\n")
 
 
-# 4. Fixed effects ----
+# ------------------------------------------------------------
+# 4. Fixed effects
+# ------------------------------------------------------------
 
 cat("FIXED EFFECTS\n")
 cat("------------------------------------------------------------\n")
@@ -1044,7 +1017,9 @@ print(fixef(best_model)$cond)
 cat("\n\n")
 
 
-# 5. Variance-covariance parameters ----
+# ------------------------------------------------------------
+# 5. Variance-covariance parameters
+# ------------------------------------------------------------
 
 cat("VARIANCE / RANDOM EFFECT PARAMETERS\n")
 cat("------------------------------------------------------------\n")
@@ -1052,15 +1027,19 @@ print(VarCorr(best_model))
 cat("\n\n")
 
 
-# 6. AIC of best threshold model ----
+# ------------------------------------------------------------
+# 6. AIC of best threshold model
+# ------------------------------------------------------------
 
-cat("BEST THRESHOLD MODEL AIC\n")
+cat("BEST THRESHOLD MODEL AIC (INCLUDING BREAKPOINT)\n")
 cat("------------------------------------------------------------\n")
-print(AIC(best_model))
+print(AIC(best_model) + 2)
 cat("\n\n")
 
 
-# 7. Linear model for comparison ----
+# ------------------------------------------------------------
+# 7. Linear model for comparison
+# ------------------------------------------------------------
 
 linear_model <- glmmTMB(
   proportion_Int1 ~
@@ -1079,35 +1058,42 @@ print(summary(linear_model))
 cat("\n\n")
 
 
-# 8. Linear vs threshold AIC ----
+# ------------------------------------------------------------
+# 8. Linear vs threshold AIC
+# ------------------------------------------------------------
 
 cat("LINEAR VS THRESHOLD MODEL AIC\n")
 cat("------------------------------------------------------------\n")
-print(AIC(linear_model, best_model))
+aic_compare_initial <- AIC(linear_model, best_model)
+
+# Count the estimated breakpoint as one additional parameter
+aic_compare_initial$df[2] <- aic_compare_initial$df[2] + 1
+aic_compare_initial$AIC[2] <- aic_compare_initial$AIC[2] + 2
+
+print(aic_compare_initial)
 
 cat("\n")
 
 cat(
   "AIC improvement (linear - threshold) =",
-  AIC(linear_model) - AIC(best_model),
+  aic_compare_initial$AIC[1] - aic_compare_initial$AIC[2],
   "\n\n"
 )
 
 
+# ------------------------------------------------------------
 # Close output file
+# ------------------------------------------------------------
 
 sink()
 
 cat("Results saved to:\n")
 cat(normalizePath(output_file), "\n")
 
-```
-
-# 9. Threshold slope estimates ----
-
-```{r 9-threshold-slopes}
-# Last analysis ----
-# CALCULATE THRESHOLD SLOPES AND SAVE DIRECTLY TO TXT ----
+########## Last analysis ######
+# ============================================================
+# CALCULATE THRESHOLD SLOPES AND SAVE DIRECTLY TO TXT
+# ============================================================
 
 # Extract coefficients and covariance matrix
 b <- fixef(best_model)$cond
@@ -1136,7 +1122,9 @@ get_slope <- function(L, b, V) {
 }
 
 
-# BELOW-THRESHOLD SLOPE ----
+# ============================================================
+# BELOW-THRESHOLD SLOPE
+# ============================================================
 
 L_below <- setNames(rep(0, length(b)), names(b))
 L_below["salinity_bp"] <- 1
@@ -1144,7 +1132,9 @@ L_below["salinity_bp"] <- 1
 below <- get_slope(L_below, b, V)
 
 
-# ABOVE-THRESHOLD SLOPE ----
+# ============================================================
+# ABOVE-THRESHOLD SLOPE
+# ============================================================
 
 L_above <- setNames(rep(0, length(b)), names(b))
 L_above["salinity_bp"] <- 1
@@ -1153,7 +1143,9 @@ L_above["post_threshold"] <- 1
 above <- get_slope(L_above, b, V)
 
 
-# CHANGE IN SLOPE ----
+# ============================================================
+# CHANGE IN SLOPE
+# ============================================================
 
 L_change <- setNames(rep(0, length(b)), names(b))
 L_change["post_threshold"] <- 1
@@ -1161,7 +1153,9 @@ L_change["post_threshold"] <- 1
 change <- get_slope(L_change, b, V)
 
 
-# CONVERT TO PERCENTAGE POINTS PER PSU ----
+# ============================================================
+# CONVERT TO PERCENTAGE POINTS PER PSU
+# ============================================================
 
 cols <- c("estimate", "SE", "lower95", "upper95")
 
@@ -1170,10 +1164,12 @@ above[cols] <- above[cols] * 100
 change[cols] <- change[cols] * 100
 
 
+# ============================================================
 # SAVE EVERYTHING TO FILE
+# ============================================================
 
 output_file <- paste0(
-  "/Users/bz294/Documents/WhiteZone/Figure/Backup/Mark_Down/",
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/",
   "VZ_threshold_slopes_results.txt"
 )
 
@@ -1256,7 +1252,7 @@ writeLines(
     "------------------------------------------------------------",
     "MODEL INFORMATION",
     "------------------------------------------------------------",
-    paste("Threshold model AIC =", AIC(best_model)),
+    paste("Threshold model AIC (including breakpoint) =", AIC(best_model) + 2),
     paste("Number of observations =", nobs(best_model))
   ),
   con
@@ -1264,13 +1260,10 @@ writeLines(
 
 close(con)
 
-```
-
-# 10. Region-adjusted threshold analysis ----
-
-```{r 10-region-adjusted-threshold}
-# Region adjusted ----
-# REGION-ADJUSTED VZ-SALINITY THRESHOLD ANALYSIS ----
+######### Region adjusted ###
+# ============================================================
+# REGION-ADJUSTED VZ-SALINITY THRESHOLD ANALYSIS
+# ============================================================
 
 # Data already contain:
 # proportion_Int1, salinity, region, year_c,
@@ -1293,7 +1286,9 @@ vz_region_data <- mixed_data %>%
   )
 
 
-# 1. Candidate thresholds ----
+# ============================================================
+# 1. Candidate thresholds
+# ============================================================
 
 candidate_thresholds_region <- seq(
   quantile(vz_region_data$salinity, 0.10, na.rm = TRUE),
@@ -1312,12 +1307,14 @@ region_models <- vector(
 )
 
 
-# 2. Fit region-adjusted piecewise models ----
+# ============================================================
+# 2. Fit region-adjusted piecewise models
 #
 # Important:
 # - region controls baseline differences
 # - year_c * region allows regional temporal trends to differ
 # - threshold effect is global across regions
+# ============================================================
 
 for (i in seq_along(candidate_thresholds_region)) {
   
@@ -1361,7 +1358,9 @@ for (i in seq_along(candidate_thresholds_region)) {
 }
 
 
-# 3. Identify best threshold ----
+# ============================================================
+# 3. Identify best threshold
+# ============================================================
 
 region_results <- region_results %>%
   mutate(
@@ -1378,7 +1377,9 @@ best_index_region <- which(
 best_model_region <- region_models[[best_index_region]]
 
 
-# 4. Equivalent REGION-ADJUSTED LINEAR model ----
+# ============================================================
+# 4. Equivalent REGION-ADJUSTED LINEAR model
+# ============================================================
 
 linear_model_region <- glmmTMB(
   proportion_Int1 ~
@@ -1393,7 +1394,9 @@ linear_model_region <- glmmTMB(
 )
 
 
-# 5. Calculate below- and above-threshold slopes ----
+# ============================================================
+# 5. Calculate below- and above-threshold slopes
+# ============================================================
 
 b_region <- fixef(best_model_region)$cond
 V_region <- vcov(best_model_region)$cond
@@ -1456,7 +1459,7 @@ above_region <- get_slope_region(
 )
 
 
-# Change in slope ----
+# Change in slope
 L_change_region <- setNames(
   rep(0, length(b_region)),
   names(b_region)
@@ -1484,10 +1487,12 @@ above_region[cols] <- above_region[cols] * 100
 change_region[cols] <- change_region[cols] * 100
 
 
-# 6. Save EVERYTHING directly to TXT ----
+# ============================================================
+# 6. Save EVERYTHING directly to TXT
+# ============================================================
 
 output_region <- paste0(
-  "/Users/bz294/Documents/WhiteZone/Figure/Backup/Mark_Down/",
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/",
   "VZ_threshold_region_adjusted_results.txt"
 )
 
@@ -1656,6 +1661,10 @@ aic_compare_region <- AIC(
   best_model_region
 )
 
+# Count the estimated breakpoint as one additional parameter
+aic_compare_region$df[2] <- aic_compare_region$df[2] + 1
+aic_compare_region$AIC[2] <- aic_compare_region$AIC[2] + 2
+
 write.table(
   aic_compare_region,
   file = con,
@@ -1668,8 +1677,8 @@ writeLines(
     "",
     paste(
       "AIC improvement (linear - threshold) =",
-      AIC(linear_model_region) -
-        AIC(best_model_region)
+      aic_compare_region$AIC[1] -
+        aic_compare_region$AIC[2]
     ),
     "",
     paste(
@@ -1682,6 +1691,4 @@ writeLines(
 
 
 close(con)
-
-```
 
