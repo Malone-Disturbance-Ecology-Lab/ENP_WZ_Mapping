@@ -779,7 +779,7 @@ sink()
 # 2013–2024 DATA
 
 mixed_data_2013_2024 <- mixed_data %>%
-  filter(year >= 2013, year <= 2024) %>%
+  filter(year >= 2014, year <= 2024) %>%
   mutate(
 # Re-center variables using ONLY 2013–2024 data
     salinity_c = salinity - mean(salinity, na.rm = TRUE),
