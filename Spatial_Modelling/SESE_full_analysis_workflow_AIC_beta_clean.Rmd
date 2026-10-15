@@ -239,6 +239,19 @@ rescaled_vz <- result_vz$transects
 calculate_length_change_averages(rate_results, "length_change_Int2", custom_range = c(27, 37))
 calculate_length_change_averages(rate_results, "length_change_Int1", custom_range = c(27, 37))
 
+landscape_transect_rates <- rate_results %>%
+  sf::st_drop_geometry() %>%
+  distinct(ID, .keep_all = TRUE) %>%
+  summarise(
+    DZ_mean_m_yr = mean(length_change_Int2, na.rm = TRUE),
+    VZ_mean_m_yr = mean(length_change_Int1, na.rm = TRUE),
+    DZ_SD = sd(length_change_Int2, na.rm = TRUE),
+    VZ_SD = sd(length_change_Int1, na.rm = TRUE),
+    N = n()
+  )
+
+print(landscape_transect_rates)
+
 ```
 
 ## 5. DZ interior boundary
@@ -767,6 +780,67 @@ cat("BIC:", BIC(model_vz2), "\n")
 cat("logLik:", as.numeric(logLik(model_vz2)), "\n")
 cat("N:", nobs(model_vz2), "\n")
 
+
+# ============================================================
+# LANDSCAPE-WIDE DZ AND VZ ANALYSIS (SESE, 1991–2024)
+# ============================================================
+
+landscape_results <- list()
+
+for (zone in c("DZ", "VZ")) {
+
+  response <- if (zone == "DZ") {
+    "proportion_Int2"
+  } else {
+    "proportion_Int1"
+  }
+
+  dat <- mixed_data %>%
+    filter(!is.na(.data[[response]])) %>%
+    droplevels()
+
+  # One common slope across the entire SESE
+  # Retain region as an adjustment for baseline differences
+  formula_landscape <- as.formula(
+    paste0(
+      response,
+      " ~ salinity_c + year_c + region + ",
+      "(1 | ID) + (1 | RegionYear) + ",
+      "ar1(year_f + 0 | ID)"
+    )
+  )
+
+  model <- glmmTMB(
+    formula_landscape,
+    data = dat,
+    family = gaussian()
+  )
+
+  coefs <- summary(model)$coefficients$cond
+
+  # Convert proportion units to percentage points
+  out <- data.frame(
+    Zone = zone,
+    N = nobs(model),
+    Annual_rate = 100 * coefs["year_c", "Estimate"],
+    Annual_p = coefs["year_c", "Pr(>|z|)"],
+    Salinity_slope = 100 * coefs["salinity_c", "Estimate"],
+    Salinity_p = coefs["salinity_c", "Pr(>|z|)"]
+  )
+
+  landscape_results[[zone]] <- out
+}
+
+landscape_table <- bind_rows(landscape_results)
+
+print(landscape_table, digits = 5)
+
+write.csv(
+  landscape_table,
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/Mark_Down/Landscape_DZ_VZ_results.csv",
+  row.names = FALSE
+)
+
 sink()
 
 ```
@@ -779,7 +853,7 @@ sink()
 # 2013–2024 DATA
 
 mixed_data_2013_2024 <- mixed_data %>%
-  filter(year >= 2014, year <= 2024) %>%
+  filter(year >= 2013, year <= 2024) %>%
   mutate(
 # Re-center variables using ONLY 2013–2024 data
     salinity_c = salinity - mean(salinity, na.rm = TRUE),
