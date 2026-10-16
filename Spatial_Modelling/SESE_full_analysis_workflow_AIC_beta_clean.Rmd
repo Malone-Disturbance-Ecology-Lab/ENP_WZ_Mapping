@@ -195,62 +195,345 @@ ggplot() +
 ## 4. Transect change rates
 
 ```{r 4-change-rates}
-# Section 4. Calculate transect-level change rates for DZ and VZ (Results section)
+
+
+# ============================================================
+# SECTION 4. LANDSCAPE-WIDE DZ AND VZ TRANSECT CHANGE RATES
+# Study period: 1984–2024 (40 years)
+#
+# Outputs:
+# 1. Individual transect change rates (m/yr)
+# 2. Landscape-wide DZ mean, SD, and median
+# 3. Landscape-wide VZ mean, SD, and median
+# 4. Transect rate shapefile
+# 5. Landscape summary CSV
+#
+# No salinity models or regional statistical comparisons.
+# ============================================================
+
+library(dplyr)
+library(sf)
+
+# ------------------------------------------------------------
+# 4.1. OUTPUT DIRECTORY
+# ------------------------------------------------------------
+
+output_dir <- "/Users/bz294/Documents/WhiteZone/Figure/Backup/Mark_Down"
+
+dir.create(
+  output_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+# ------------------------------------------------------------
+# 4.2. CALCULATE LAND-COVER PROPORTION CHANGES
+# ------------------------------------------------------------
+
+# Use the 1984 and 2024 observations for each transect.
+
 temp <- summary_data_df %>%
+  filter(time %in% c(1984, 2024)) %>%
   arrange(ID, time) %>%
   group_by(ID) %>%
+  filter(
+    any(time == 1984),
+    any(time == 2024)
+  ) %>%
   summarise(
-    trend_Int1 = last(proportion_Int1) - first(proportion_Int1),
-    trend_Int2 = last(proportion_Int2) - first(proportion_Int2),
-    trend_Int3 = last(proportion_Int3) - first(proportion_Int3),
+    trend_Int1 =
+      proportion_Int1[time == 2024][1] -
+      proportion_Int1[time == 1984][1],
+
+    trend_Int2 =
+      proportion_Int2[time == 2024][1] -
+      proportion_Int2[time == 1984][1],
+
+    trend_Int3 =
+      proportion_Int3[time == 2024][1] -
+      proportion_Int3[time == 1984][1],
+
     .groups = "drop"
   )
-# summarise(
-# prop_Int1_2014 = proportion_Int1[time == 2014],
-# prop_Int2_2014 = proportion_Int2[time == 2014],
-# prop_Int3_2014 = proportion_Int3[time == 2014],
-# trend_Int1 = last(proportion_Int1) - proportion_Int1[time == 2014],
-# trend_Int2 = last(proportion_Int2) - proportion_Int2[time == 2014],
-# trend_Int3 = last(proportion_Int3) - proportion_Int3[time == 2014],
-# .groups = "drop"
-# )
 
+# ------------------------------------------------------------
+# 4.3. CONVERT PROPORTION CHANGES TO SPATIAL RATES
+# ------------------------------------------------------------
 
-# Join the two data frames by ID
 rate_results <- transects_in_polygon %>%
-  mutate(length.org = as.numeric(length.org)) %>%  # Drop units here
+  mutate(
+    length.org = as.numeric(length.org)
+  ) %>%
   left_join(temp, by = "ID") %>%
   mutate(
-    length_change_Int1 = length.org * trend_Int1 / 40,
-    length_change_Int2 = length.org * trend_Int2 / 40,
-    length_change_Int3 = length.org * trend_Int3 / 40
+    length_change_Int1 =
+      length.org * trend_Int1 / 40,
+
+    length_change_Int2 =
+      length.org * trend_Int2 / 40,
+
+    length_change_Int3 =
+      length.org * trend_Int3 / 40
   )
 
-output_path <- "/Volumes/MaloneLab/Research/Whitezone/Result/Spatial_Modelling/transects_with_trend_.shp"
-st_write(rate_results, output_path, delete_layer = TRUE)
-# plot_and_save_transects(rate_results, connection_line, subset_transects_utm, filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/transects.tiff")
+# ------------------------------------------------------------
+# 4.4. EXPORT SPATIAL TRANSECT DATA
+# ------------------------------------------------------------
 
-result <- plot_rates(rate_results, length_col = "length_change_Int2")
+output_path <- paste0(
+  "/Volumes/MaloneLab/Research/Whitezone/",
+  "Result/Spatial_Modelling/",
+  "transects_with_trend_.shp"
+)
+
+st_write(
+  rate_results,
+  output_path,
+  delete_layer = TRUE
+)
+
+# ------------------------------------------------------------
+# 4.5. PLOT TRANSECT RATES
+# ------------------------------------------------------------
+
+# DZ rates
+result <- plot_rates(
+  rate_results,
+  length_col = "length_change_Int2"
+)
+
 rescaled_transects <- result$transects
 connection_line <- result$connection_line
 
-result_vz <- plot_rates(rate_results, length_col = "length_change_Int1")
-rescaled_vz <- result_vz$transects
-calculate_length_change_averages(rate_results, "length_change_Int2", custom_range = c(27, 37))
-calculate_length_change_averages(rate_results, "length_change_Int1", custom_range = c(27, 37))
+# VZ rates
+result_vz <- plot_rates(
+  rate_results,
+  length_col = "length_change_Int1"
+)
 
-landscape_transect_rates <- rate_results %>%
+rescaled_vz <- result_vz$transects
+
+# Preserve original spatial summaries
+calculate_length_change_averages(
+  rate_results,
+  "length_change_Int2",
+  custom_range = c(27, 37)
+)
+
+calculate_length_change_averages(
+  rate_results,
+  "length_change_Int1",
+  custom_range = c(27, 37)
+)
+
+# ------------------------------------------------------------
+# 4.6. PREPARE UNIQUE TRANSECTS
+# ------------------------------------------------------------
+
+rates <- rate_results %>%
+  st_drop_geometry() %>%
+  distinct(ID, .keep_all = TRUE) %>%
+  filter(ID >= 1 & ID <= 100)
+
+cat("\n========================================\n")
+cat("NUMBER OF TRANSECTS\n")
+cat("========================================\n")
+
+print(nrow(rates))
+
+# ------------------------------------------------------------
+# 4.7. LANDSCAPE-WIDE DZ AND VZ RATE STATISTICS
+# ------------------------------------------------------------
+
+rate_long <- bind_rows(
+  rates %>%
+    transmute(
+      ID,
+      Zone = "DZ",
+      rate = as.numeric(length_change_Int2)
+    ),
+  rates %>%
+    transmute(
+      ID,
+      Zone = "VZ",
+      rate = as.numeric(length_change_Int1)
+    )
+) %>%
+  filter(is.finite(rate))
+
+landscape_results <- rate_long %>%
+  group_by(Zone) %>%
+  summarise(
+    Region = "Landscape",
+    n = n(),
+    mean_rate_m_yr = mean(rate),
+    sd_rate_m_yr = sd(rate),
+    median_rate_m_yr = median(rate),
+    min_rate_m_yr = min(rate),
+    max_rate_m_yr = max(rate),
+    .groups = "drop"
+  ) %>%
+  arrange(factor(Zone, levels = c("DZ", "VZ")))
+
+# ------------------------------------------------------------
+# 4.8. PRINT LANDSCAPE RESULTS
+# ------------------------------------------------------------
+
+cat("\n========================================\n")
+cat("LANDSCAPE-WIDE TRANSECT CHANGE RATES\n")
+cat("Study period: 1984–2024\n")
+cat("Units: m/yr\n")
+cat("========================================\n")
+
+print(landscape_results, n = Inf)
+
+# ------------------------------------------------------------
+# 4.9. EXPORT LANDSCAPE RESULTS
+# ------------------------------------------------------------
+
+write.csv(
+  landscape_results,
+  file.path(
+    output_dir,
+    "Landscape_transect_rates.csv"
+  ),
+  row.names = FALSE
+)
+
+# Export individual transect rates
+write.csv(
+  rate_long,
+  file.path(
+    output_dir,
+    "Individual_transect_rates.csv"
+  ),
+  row.names = FALSE
+)
+
+cat("\n========================================\n")
+cat("LANDSCAPE ANALYSIS COMPLETED\n")
+cat("========================================\n")
+
+cat(
+  "\nResults saved to:\n",
+  file.path(output_dir, "Landscape_transect_rates.csv"),
+  "\n"
+)
+
+
+# ============================================================
+# LANDSCAPE + SUBREGIONAL TRANSECT RATE RESULTS
+# Run after rate_results has been calculated
+# ============================================================
+
+output_dir <- "/Users/bz294/Documents/WhiteZone/Figure/Backup/Mark_Down"
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+# Prepare individual transect rates
+rates <- rate_results %>%
   sf::st_drop_geometry() %>%
   distinct(ID, .keep_all = TRUE) %>%
+  mutate(
+    region = case_when(
+      ID >= 62 & ID <= 100 ~ "Western",
+      ID >= 37 & ID <= 61 ~ "Central",
+      ID >= 1  & ID <= 36 ~ "Eastern",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(region))
+
+rate_long <- bind_rows(
+  rates %>%
+    transmute(ID, region, Zone = "DZ",
+              rate = as.numeric(length_change_Int2)),
+  rates %>%
+    transmute(ID, region, Zone = "VZ",
+              rate = as.numeric(length_change_Int1))
+) %>%
+  filter(is.finite(rate))
+
+# Subregional results
+regional_results <- rate_long %>%
+  group_by(Zone, region) %>%
   summarise(
-    DZ_mean_m_yr = mean(length_change_Int2, na.rm = TRUE),
-    VZ_mean_m_yr = mean(length_change_Int1, na.rm = TRUE),
-    DZ_SD = sd(length_change_Int2, na.rm = TRUE),
-    VZ_SD = sd(length_change_Int1, na.rm = TRUE),
-    N = n()
+    n = n(),
+    mean_rate_m_yr = mean(rate),
+    sd_rate_m_yr = sd(rate),
+    median_rate_m_yr = median(rate),
+    .groups = "drop"
   )
 
-print(landscape_transect_rates)
+# Landscape-wide results
+landscape_results <- rate_long %>%
+  group_by(Zone) %>%
+  summarise(
+    region = "Landscape",
+    n = n(),
+    mean_rate_m_yr = mean(rate),
+    sd_rate_m_yr = sd(rate),
+    median_rate_m_yr = median(rate),
+    .groups = "drop"
+  )
+
+# Welch ANOVA
+anova_results <- rate_long %>%
+  group_by(Zone) %>%
+  group_modify(~ {
+    test <- oneway.test(rate ~ region, data = .x,
+                        var.equal = FALSE)
+    tibble(
+      regional_difference_p = test$p.value,
+      significant_difference =
+        ifelse(test$p.value < 0.05, "Yes", "No")
+    )
+  }) %>%
+  ungroup()
+
+regional_results <- regional_results %>%
+  left_join(anova_results, by = "Zone")
+
+landscape_results <- landscape_results %>%
+  mutate(
+    regional_difference_p = NA_real_,
+    significant_difference = NA_character_
+  )
+
+# Combine all 8 rows
+table_results <- bind_rows(
+  landscape_results,
+  regional_results
+) %>%
+  mutate(
+    Zone = factor(Zone, levels = c("DZ", "VZ")),
+    region = factor(
+      region,
+      levels = c("Landscape", "Western", "Central", "Eastern")
+    )
+  ) %>%
+  arrange(Zone, region)
+
+print(table_results, n = Inf)
+
+# Export combined results
+write.csv(
+  table_results,
+  file.path(output_dir, "Transect_rate_table_results.csv"),
+  row.names = FALSE
+)
+
+# Export landscape separately
+write.csv(
+  landscape_results,
+  file.path(output_dir, "Landscape_transect_rates.csv"),
+  row.names = FALSE
+)
+
+cat("\nAll landscape and subregional results saved.\n")
+
+
+
+
 
 ```
 
