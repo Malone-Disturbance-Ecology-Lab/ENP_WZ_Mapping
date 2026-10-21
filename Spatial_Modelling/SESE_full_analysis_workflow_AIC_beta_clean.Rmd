@@ -361,6 +361,73 @@ rate_long <- bind_rows(
 ) %>%
   filter(is.finite(rate))
 
+
+# ============================================================
+# WELCH ANOVA + GAMES-HOWELL
+# DZ and VZ transect rates, 1984–2024
+# LAND-COVER DATA ONLY (NO SALINITY)
+# ============================================================
+
+library(dplyr)
+library(rstatix)
+
+# 1. Assign subregions using transect IDs
+rate_test_data <- rate_long %>%
+  ungroup() %>%
+  mutate(
+    region = case_when(
+      ID >= 62 & ID <= 100 ~ "Western",
+      ID >= 37 & ID <= 61  ~ "Central",
+      ID >= 1  & ID <= 36  ~ "Eastern",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(
+    !is.na(region),
+    Zone %in% c("DZ", "VZ"),
+    is.finite(rate)
+  ) %>%
+  mutate(
+    region = factor(
+      region,
+      levels = c("Western", "Central", "Eastern")
+    )
+  )
+
+# 2. Check sample sizes
+print(rate_test_data %>% count(Zone, region))
+
+# 3. Overall Welch ANOVA
+overall_results <- rate_test_data %>%
+  group_by(Zone) %>%
+  welch_anova_test(rate ~ region)
+
+print(overall_results, n = Inf)
+
+# 4. Pairwise Games–Howell tests
+pairwise_results <- rate_test_data %>%
+  group_by(Zone) %>%
+  games_howell_test(rate ~ region)
+
+print(pairwise_results, n = Inf)
+
+# 5. Export results
+output_dir <- "/Users/bz294/Documents/WhiteZone/Figure/Backup/Mark_Down"
+
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+write.csv(
+  overall_results,
+  file.path(output_dir, "Rate_Welch_ANOVA.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  pairwise_results,
+  file.path(output_dir, "Rate_Games_Howell.csv"),
+  row.names = FALSE
+)
+
 landscape_results <- rate_long %>%
   group_by(Zone) %>%
   summarise(
