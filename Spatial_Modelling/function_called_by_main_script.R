@@ -1517,7 +1517,101 @@ plot_correlation_map <- function(data, point_of_interest, ENP_transects, station
       opacity = 1
     )
 }
-
+########## Correlation by detrending first #########################
+compute_detrended_correlations_by_region <- function(
+    all_annual_averages,
+    summary_data,
+    west_sites,
+    central_sites,
+    east_sites,
+    proportion_col) {
+  
+  # 1. Annual mean salinity by subregion
+  salinity_region <- all_annual_averages %>%
+    mutate(
+      region = case_when(
+        site %in% west_sites    ~ "West",
+        site %in% central_sites ~ "Central",
+        site %in% east_sites    ~ "East",
+        TRUE ~ NA_character_
+      )
+    ) %>%
+    filter(!is.na(region)) %>%
+    group_by(region, year) %>%
+    summarise(
+      salinity = mean(annual_avg, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  # 2. Correct transect-region assignment
+  landcover <- summary_data %>%
+    mutate(
+      region = case_when(
+        ID >= 1  & ID <= 36  ~ "East",
+        ID >= 37 & ID <= 61  ~ "Central",
+        ID >= 62 & ID <= 100 ~ "West",
+        TRUE ~ NA_character_
+      ),
+      year = as.numeric(time)
+    ) %>%
+    filter(!is.na(region)) %>%
+    dplyr::select(
+      ID,
+      year,
+      region,
+      landcover = all_of(proportion_col)
+    )
+  
+  # 3. Match land cover with regional salinity by year
+  combined <- landcover %>%
+    left_join(
+      salinity_region,
+      by = c("region", "year")
+    ) %>%
+    filter(
+      is.finite(landcover),
+      is.finite(salinity),
+      is.finite(year)
+    )
+  
+  # 4. Detrend both series within each transect
+  correlation_results <- combined %>%
+    group_by(ID, region) %>%
+    group_modify(~ {
+      
+      df <- .x
+      
+      if (nrow(df) < 4 ||
+          length(unique(df$year)) < 4 ||
+          sd(df$landcover) == 0 ||
+          sd(df$salinity) == 0) {
+        return(tibble(
+          correlation = NA_real_,
+          n = nrow(df)
+        ))
+      }
+      
+      lm_landcover <- lm(landcover ~ year, data = df)
+      lm_salinity  <- lm(salinity ~ year, data = df)
+      
+      landcover_detrended <- residuals(lm_landcover)
+      salinity_detrended  <- residuals(lm_salinity)
+      
+      r <- cor(
+        landcover_detrended,
+        salinity_detrended,
+        method = "pearson"
+      )
+      
+      tibble(
+        correlation = r,
+        n = nrow(df)
+      )
+    }) %>%
+    ungroup()
+  
+  return(correlation_results)
+}
 #### calculate dbhydro wl correlations among sites and transects ##
 compute_dbhydro_correlations <- function(all_site_names, wl, summary_data) {
   total_sites <- length(all_site_names)

@@ -353,6 +353,11 @@ correlation_salinity_dz <- compute_site_correlations_by_region(
   proportion_col = "proportion_Int2"  # STRING
 )
 
+write.csv(
+  correlation_salinity_dz,
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/DZ_original_correlation.csv",
+  row.names = FALSE
+)
 ##### Section 6.3 Join with the lat and lon info #################
 csv_file <- "/Volumes/Malonelab/Research/Whitezone/Hydro_Salinity/Salinity/WZ_salinity_sites_latlon.csv"  # replace with your file path
 salinity_summary <- read.csv(csv_file)
@@ -445,7 +450,7 @@ transect_plot_dz <- ggplot() +
     )
 
 ggsave(
-  filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/rescaled_dz_plot_roy.tif",
+  filename = "/Users/bz294/Documents/WhiteZone/Figure/Backup/rescaled_dz_plot_roy_old.tif",
   plot = transect_plot_dz,   # use the named plot object
   device = "tiff",
   width = 10,
@@ -454,6 +459,16 @@ ggsave(
   bg = "white"            # ensures white background
 )
 
+# Export transect-level DZ correlation data
+dz_output <- rescaled_transects_colored %>%
+  st_drop_geometry() %>%
+  dplyr::select(ID, correlation, everything())
+
+write.csv(
+  dz_output,
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/dz_correlation_old.csv",
+  row.names = FALSE
+)
 ############# Plot the transect land-cover data ######
 # Make sure year is numeric
 summary_data <- summary_data %>%
@@ -506,6 +521,12 @@ correlation_salinity_vz <- compute_site_correlations_by_region(
   central_sites = central,
   east_sites = east,
   proportion_col = "proportion_Int1"  # STRING
+)
+
+write.csv(
+  correlation_salinity_vz,
+  "/Users/bz294/Documents/WhiteZone/Figure/Backup/VZ_original_correlation.csv",
+  row.names = FALSE
 )
 
 rescaled_vz_colored <- rescaled_vz %>%
