@@ -849,7 +849,11 @@ plot_land_cover_time_series <- function(raster_folder_path, output_path, extend_
     #   linetype = "solid",
     #   color = "grey"   # same color for both lines
     # ) +
-    scale_color_manual(values = cols) +
+    scale_color_manual(
+      values = cols,
+      breaks = c("VZ", "WZ", "TZ"),
+      labels = c("Vegetation Zone", "Degradation Zone", "Transition Zone")
+    ) +
     scale_linetype_manual(values = c("Observed" = "solid", "Projected" = "dashed"), guide = "none") +
     scale_x_continuous(
       breaks = seq(1984, 2024, by = 10), 
