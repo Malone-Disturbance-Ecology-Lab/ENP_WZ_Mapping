@@ -1686,3 +1686,182 @@ writeLines(
 
 close(con)
 
+### FOR Graphical Abstract ##
+
+library(sf)
+library(dplyr)
+library(ggplot2)
+
+# ============================================================
+# 1. PREPARE THE 100 TRANSECTS
+# ============================================================
+
+transects_plot <- transects_in_polygon %>%
+  st_transform(32617) %>%
+  mutate(
+    ID = as.integer(as.character(ID)),
+    Region = case_when(
+      ID >= 62 & ID <= 100 ~ "West",
+      ID >= 37 & ID <= 61  ~ "Central",
+      ID >= 1  & ID <= 36  ~ "East",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(Region))
+
+transects_plot$Region <- factor(
+  transects_plot$Region,
+  levels = c("West", "Central", "East")
+)
+
+# ============================================================
+# 2. COLORS: YELLOW / ORANGE / RED
+# ============================================================
+
+region_colors <- c(
+  "West"    = "#F4C430",  # Yellow
+  "Central" = "#F28C28",  # Orange
+  "East"    = "#D62828"   # Red
+)
+
+# ============================================================
+# 3. PREPARE STUDY AREA BOUNDARY
+# ============================================================
+
+aoi_plot <- st_transform(aoi, 32617)
+
+# Get map bounds for annotation placement
+bbox <- st_bbox(transects_plot)
+
+xmin <- as.numeric(bbox["xmin"])
+xmax <- as.numeric(bbox["xmax"])
+ymin <- as.numeric(bbox["ymin"])
+ymax <- as.numeric(bbox["ymax"])
+
+map_width  <- xmax - xmin
+map_height <- ymax - ymin
+
+# ============================================================
+# 4. LABEL POSITIONS
+# ============================================================
+
+# Calculate representative positions from each region.
+# Labels are positioned beneath the transects.
+
+region_centers <- transects_plot %>%
+  group_by(Region) %>%
+  summarise(.groups = "drop") %>%
+  st_centroid()
+
+coords <- st_coordinates(region_centers)
+
+label_df <- data.frame(
+  Region = region_centers$Region,
+  x = coords[, 1],
+  y = rep(ymin - 0.12 * map_height, nrow(region_centers))
+)
+
+label_df$Label <- c(
+  "West\n17.6 PSU",
+  "Central\n21.9 PSU",
+  "East\n29.8 PSU"
+)
+
+# ============================================================
+# 5. CREATE FIGURE
+# ============================================================
+
+p <- ggplot() +
+  
+  # All transects, colored by salinity region
+  geom_sf(
+    data = transects_plot,
+    aes(color = Region),
+    linewidth = 0.65,
+    alpha = 0.85
+  ) +
+  
+  # Study-area boundary
+  geom_sf(
+    data = aoi_plot,
+    fill = NA,
+    color = "grey35",
+    linewidth = 0.65
+  ) +
+  
+  # Region labels
+  geom_label(
+    data = label_df,
+    aes(
+      x = x,
+      y = y,
+      label = Label,
+      fill = Region
+    ),
+    color = "black",
+    size = 6,
+    fontface = "bold",
+    family = "Arial",
+    label.size = 0,
+    label.padding = unit(0.35, "lines")
+  ) +
+  
+  scale_color_manual(values = region_colors) +
+  scale_fill_manual(values = region_colors) +
+  
+  coord_sf(
+    xlim = c(xmin - 0.05 * map_width,
+             xmax + 0.05 * map_width),
+    ylim = c(ymin - 0.25 * map_height,
+             ymax + 0.10 * map_height),
+    datum = NA,
+    expand = FALSE
+  ) +
+  
+  theme_void(base_family = "Arial") +
+  
+  theme(
+    legend.position = "none",
+    panel.background = element_rect(
+      fill = "white",
+      color = NA
+    ),
+    plot.background = element_rect(
+      fill = "white",
+      color = NA
+    ),
+    plot.margin = margin(20, 25, 20, 25)
+  )
+
+print(p)
+
+# ============================================================
+# 6. SAVE TIFF AND PNG
+# ============================================================
+
+output_dir <- "/Users/bz294/Documents/WhiteZone/Figure/Backup"
+
+dir.create(
+  output_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+ggsave(
+  file.path(output_dir, "SESE_transects_salinity_regions.tif"),
+  plot = p,
+  width = 12,
+  height = 7,
+  dpi = 300,
+  compression = "lzw",
+  bg = "white"
+)
+
+ggsave(
+  file.path(output_dir, "SESE_transects_salinity_regions.png"),
+  plot = p,
+  width = 12,
+  height = 7,
+  dpi = 300,
+  bg = "white"
+)
